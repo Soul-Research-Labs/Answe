@@ -14,6 +14,13 @@ import {
   type NoteInput,
 } from "./crypto.js";
 import type { Felt252 } from "./types.js";
+import {
+  createHash,
+  randomBytes,
+  createCipheriv,
+  createDecipheriv,
+  pbkdf2Sync,
+} from "crypto";
 
 export type NoteStatus = "unspent" | "spent" | "pending";
 
@@ -259,4 +266,123 @@ export class NoteManager {
       createdAt: Date.now(),
     };
   }
+
+  // ─── Encrypted Persistence ──────────────────────────────────
+
+  /**
+   * Export all notes as an encrypted JSON blob.
+   * Uses AES-256-GCM with a password-derived key (PBKDF2, 100k iterations).
+   *
+   * @param password - Encryption password (user-supplied).
+   * @returns Base64-encoded encrypted blob (salt:iv:tag:ciphertext).
+   */
+  exportEncrypted(password: string): string {
+    const notes = this.exportNotes();
+    const serialized: SerializedNote[] = notes.map((n) => ({
+      id: n.id,
+      owner: n.owner.toString(16),
+      value: n.value.toString(),
+      assetId: n.assetId.toString(16),
+      blinding: n.blinding.toString(16),
+      commitment: n.commitment.toString(16),
+      leafIndex: n.leafIndex,
+      status: n.status,
+      createdAt: n.createdAt,
+    }));
+
+    const plaintext = JSON.stringify({
+      version: 1,
+      nextId: this.nextId,
+      notes: serialized,
+    });
+    const salt = randomBytes(32);
+    const key = pbkdf2Sync(password, salt, 100_000, 32, "sha256");
+    const iv = randomBytes(12);
+
+    const cipher = createCipheriv("aes-256-gcm", key, iv);
+    const encrypted = Buffer.concat([
+      cipher.update(plaintext, "utf8"),
+      cipher.final(),
+    ]);
+    const tag = cipher.getAuthTag();
+
+    // Format: salt(32) || iv(12) || tag(16) || ciphertext
+    return Buffer.concat([salt, iv, tag, encrypted]).toString("base64");
+  }
+
+  /**
+   * Import notes from an encrypted blob produced by `exportEncrypted`.
+   *
+   * @param blob - Base64-encoded encrypted blob.
+   * @param password - Decryption password.
+   * @param merge - If true, add to existing notes; if false, replace all.
+   */
+  importEncrypted(blob: string, password: string, merge = false): void {
+    const data = Buffer.from(blob, "base64");
+    if (data.length < 60) throw new Error("Invalid encrypted blob");
+
+    const salt = data.subarray(0, 32);
+    const iv = data.subarray(32, 44);
+    const tag = data.subarray(44, 60);
+    const ciphertext = data.subarray(60);
+
+    const key = pbkdf2Sync(password, salt, 100_000, 32, "sha256");
+    const decipher = createDecipheriv("aes-256-gcm", key, iv);
+    decipher.setAuthTag(tag);
+
+    let plaintext: string;
+    try {
+      plaintext =
+        decipher.update(ciphertext).toString("utf8") + decipher.final("utf8");
+    } catch {
+      throw new Error("Decryption failed — wrong password or corrupted data");
+    }
+
+    const parsed = JSON.parse(plaintext) as {
+      version: number;
+      nextId: number;
+      notes: SerializedNote[];
+    };
+    if (parsed.version !== 1)
+      throw new Error(`Unsupported blob version: ${parsed.version}`);
+
+    if (!merge) {
+      this.notes.clear();
+    }
+
+    for (const s of parsed.notes) {
+      const note: PrivacyNote = {
+        id: s.id,
+        owner: BigInt("0x" + s.owner),
+        value: BigInt(s.value),
+        assetId: BigInt("0x" + s.assetId),
+        blinding: BigInt("0x" + s.blinding),
+        commitment: BigInt("0x" + s.commitment),
+        leafIndex: s.leafIndex,
+        status: s.status,
+        createdAt: s.createdAt,
+      };
+
+      // In merge mode, skip notes that conflict with existing IDs
+      if (merge && this.notes.has(note.id)) {
+        continue;
+      }
+      this.notes.set(note.id, note);
+    }
+
+    this.nextId = Math.max(this.nextId, parsed.nextId);
+  }
+}
+
+/** Serialized note format for encrypted storage. */
+interface SerializedNote {
+  id: string;
+  owner: string;
+  value: string;
+  assetId: string;
+  blinding: string;
+  commitment: string;
+  leafIndex?: number;
+  status: NoteStatus;
+  createdAt: number;
 }

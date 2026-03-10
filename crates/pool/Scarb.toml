@@ -9,6 +9,8 @@ starkprivacy_primitives = { path = "../primitives" }
 starkprivacy_tree = { path = "../tree" }
 starkprivacy_nullifier = { path = "../nullifier" }
 starkprivacy_compliance = { path = "../compliance" }
+starkprivacy_circuits = { path = "../circuits" }
+starkprivacy_security = { path = "../security" }
 openzeppelin_token = { git = "https://github.com/OpenZeppelin/cairo-contracts.git", tag = "v0.20.0" }
 openzeppelin_security = { git = "https://github.com/OpenZeppelin/cairo-contracts.git", tag = "v0.20.0" }
 openzeppelin_access = { git = "https://github.com/OpenZeppelin/cairo-contracts.git", tag = "v0.20.0" }

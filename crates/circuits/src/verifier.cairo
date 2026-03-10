@@ -11,6 +11,8 @@
 /// [4..N]  = type-specific public inputs
 /// [N+1..] = STARK proof data (opaque bytes from prover)
 
+use crate::metadata::ENVELOPE_SIZE;
+
 /// Proof types
 pub const PROOF_TYPE_TRANSFER: felt252 = 1;
 pub const PROOF_TYPE_WITHDRAW: felt252 = 2;
@@ -45,6 +47,10 @@ pub fn encode_transfer_envelope(
         envelope.append(*proof_data.at(i));
         i += 1;
     };
+    // Pad to ENVELOPE_SIZE for metadata resistance
+    while envelope.len() < ENVELOPE_SIZE {
+        envelope.append(0);
+    };
     envelope
 }
 
@@ -73,6 +79,10 @@ pub fn encode_withdraw_envelope(
     while i < proof_data.len() {
         envelope.append(*proof_data.at(i));
         i += 1;
+    };
+    // Pad to ENVELOPE_SIZE for metadata resistance
+    while envelope.len() < ENVELOPE_SIZE {
+        envelope.append(0);
     };
     envelope
 }
@@ -154,8 +164,8 @@ mod tests {
         assert!(decoded.output_commitment_1 == 0x5555, "oc1 mismatch");
         assert!(decoded.fee == 10, "fee mismatch");
 
-        // Total length: 7 header + 3 proof = 10
-        assert!(envelope.len() == 10, "envelope length mismatch");
+        // Padded to ENVELOPE_SIZE
+        assert!(envelope.len() == 64, "envelope length mismatch");
     }
 
     #[test]
@@ -176,8 +186,8 @@ mod tests {
         assert!(decoded.fee == 10, "fee mismatch");
         assert!(decoded.asset_id == 0, "asset mismatch");
 
-        // Total length: 8 header + 2 proof = 10
-        assert!(envelope.len() == 10, "envelope length mismatch");
+        // Padded to ENVELOPE_SIZE
+        assert!(envelope.len() == 64, "envelope length mismatch");
     }
 
     #[test]

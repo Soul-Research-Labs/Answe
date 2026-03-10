@@ -21,7 +21,7 @@ fn deploy_sanctions_oracle() -> ContractAddress {
 
 fn deploy_pool_with_compliance(compliance: ContractAddress) -> ContractAddress {
     let contract = declare("PrivacyPool").unwrap().contract_class();
-    let native_token: ContractAddress = 0x1.try_into().unwrap();
+    let native_token: ContractAddress = 0.try_into().unwrap(); // zero = balance-tracking only (no ERC-20)
     let chain_id: felt252 = 'SN_SEPOLIA';
     let app_id: felt252 = 'STARKPRIVACY';
     let owner: ContractAddress = 0x999.try_into().unwrap();

@@ -161,4 +161,88 @@ describe("NoteManager", () => {
       expect(stats.pending).toBe(0);
     });
   });
+
+  describe("encrypted persistence", () => {
+    it("round-trips notes through encrypt/decrypt", () => {
+      const nm = new NoteManager();
+      const n1 = nm.createNote(0xabcn, 1000n, 0n);
+      nm.confirmNote(n1.id, 0);
+      const n2 = nm.createNote(0xdefn, 2000n, 1n);
+      nm.confirmNote(n2.id, 1);
+      nm.markSpent([n1.id]);
+
+      const blob = nm.exportEncrypted("test-password-123");
+      expect(typeof blob).toBe("string");
+      expect(blob.length).toBeGreaterThan(0);
+
+      // Import into a fresh manager
+      const nm2 = new NoteManager();
+      nm2.importEncrypted(blob, "test-password-123");
+
+      const notes = nm2.exportNotes();
+      expect(notes.length).toBe(2);
+
+      const restored1 = notes.find((n) => n.id === n1.id)!;
+      expect(restored1.owner).toBe(0xabcn);
+      expect(restored1.value).toBe(1000n);
+      expect(restored1.status).toBe("spent");
+      expect(restored1.leafIndex).toBe(0);
+
+      const restored2 = notes.find((n) => n.id === n2.id)!;
+      expect(restored2.owner).toBe(0xdefn);
+      expect(restored2.value).toBe(2000n);
+      expect(restored2.assetId).toBe(1n);
+      expect(restored2.status).toBe("unspent");
+    });
+
+    it("wrong password throws", () => {
+      const nm = new NoteManager();
+      nm.createNote(1n, 100n);
+      const blob = nm.exportEncrypted("correct-password");
+
+      const nm2 = new NoteManager();
+      expect(() => nm2.importEncrypted(blob, "wrong-password")).toThrow(
+        /Decryption failed/,
+      );
+    });
+
+    it("merge mode preserves existing notes", () => {
+      const nm1 = new NoteManager();
+      const imported = nm1.createNote(1n, 100n);
+      const blob = nm1.exportEncrypted("pass");
+
+      // Create second manager with a couple notes first
+      // so its internal IDs don't collide with nm1
+      const nm2 = new NoteManager();
+      nm2.createNote(2n, 200n); // note_0
+      nm2.createNote(2n, 300n); // note_1
+      // merge should add the imported note (note_0 from nm1) — but since
+      // note_0 already exists in nm2, it's skipped to avoid overwrite
+      nm2.importEncrypted(blob, "pass", true);
+
+      const allNotes = nm2.exportNotes();
+      // The existing note_0 (200n) is preserved, imported note_0 is skipped
+      expect(allNotes.length).toBe(2);
+      expect(allNotes.find((n) => n.value === 200n)).toBeDefined();
+    });
+
+    it("replace mode clears existing notes", () => {
+      const nm1 = new NoteManager();
+      nm1.createNote(1n, 100n);
+      const blob = nm1.exportEncrypted("pass");
+
+      const nm2 = new NoteManager();
+      nm2.createNote(2n, 200n);
+      nm2.createNote(3n, 300n);
+      nm2.importEncrypted(blob, "pass", false); // replace
+
+      expect(nm2.exportNotes().length).toBe(1);
+    });
+
+    it("rejects truncated blob", () => {
+      expect(() => new NoteManager().importEncrypted("AAAA", "pass")).toThrow(
+        /Invalid encrypted blob/,
+      );
+    });
+  });
 });

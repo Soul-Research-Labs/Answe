@@ -51,6 +51,7 @@ assert_macros.workspace = true
 sierra = true
 build-external-contracts = [
     "starkprivacy_pool::PrivacyPool",
+    "starkprivacy_pool::MockVerifier",
     "starkprivacy_nullifier::NullifierRegistry",
     "starkprivacy_stealth::StealthRegistry",
     "starkprivacy_stealth::StealthAccountFactory",

@@ -72,6 +72,10 @@ StarkPrivacy port the core concepts from **ZAseon** (cross-chain ZK privacy midd
 - **Metadata resistance** — Fixed-size 64-felt proof envelopes with dummy padding
 - **Timelock governance** — Delayed-execution admin operations with configurable delay
 - **MultiSig** — M-of-N multisignature governance for protocol upgrades
+- **Pausable pool** — Owner can pause/unpause deposits, transfers, and withdrawals
+- **ERC-20 integration** — Real token transfers via `IERC20Dispatcher` (configurable; zero-address = balance-tracking only)
+- **Proof verifier** — Pluggable `IProofVerifier` contract for STARK proof validation (MockVerifier for testnet)
+- **Fee routing** — Configurable fee recipient address for relayer compensation
 
 ### Cryptographic Primitives
 
@@ -100,18 +104,18 @@ starkprivacy/
 │   ├── src/
 │   │   ├── crypto.ts       # Poseidon/Pedersen wrappers (starknet.js)
 │   │   ├── keys.ts         # Key management (spending, viewing, owner hash)
-│   │   ├── notes.ts        # Note tracking & coin selection
+│   │   ├── notes.ts        # Note tracking, coin selection, encrypted persistence
 │   │   ├── stealth.ts      # Stealth address derivation & scanning
 │   │   ├── prover.ts       # Client-side proof generation & Merkle tree
 │   │   ├── relayer.ts      # Relayer service scaffold (job queue, validation)
 │   │   ├── metadata.ts     # Metadata resistance (envelopes, batch, jitter)
-│   │   ├── indexer.ts      # Event indexer for note & stealth scanning
+│   │   ├── indexer.ts      # Event indexer + block scanning for note & stealth detection
 │   │   ├── stone-prover.ts # Stone-prover / S-Two integration backends
 │   │   ├── client.ts       # StarkPrivacyClient — main entry point
 │   │   ├── cli.ts          # CLI tool
 │   │   ├── types.ts        # ABIs, ContractAddresses, types
 │   │   └── index.ts        # Public exports
-│   └── src/__tests__/      # 126 unit + integration tests
+│   └── src/__tests__/      # 131 unit + integration tests
 ├── contracts/
 │   └── evm/                # Kakarot EVM adapter (Solidity interfaces)
 ├── tests/              # Cairo integration + fuzz tests (snforge)
@@ -154,13 +158,14 @@ Compiled artifacts are written to `target/dev/`:
 - `starkprivacy_EpochManager.contract_class.json`
 - `starkprivacy_SanctionsOracle.contract_class.json`
 - `starkprivacy_MadaraAdapter.contract_class.json`
+- `starkprivacy_MockVerifier.contract_class.json`
 - `starkprivacy_Timelock.contract_class.json`
 - `starkprivacy_MultiSig.contract_class.json`
 
 ### 2. Run Cairo Tests
 
 ```bash
-# Run all workspace tests (131 tests, incl. fuzz)
+# Run all workspace tests (145 tests, incl. fuzz)
 snforge test --workspace
 
 # Run only integration tests
@@ -181,7 +186,7 @@ npm install
 # Build TypeScript
 npm run build
 
-# Run tests (126 passing)
+# Run tests (131 passing)
 npm test
 ```
 
@@ -359,6 +364,11 @@ DEVNET_URL=http://127.0.0.1:5050/rpc POOL_ADDRESS=0x... npm test
 - `PrivacyPool` — Main contract: `deposit()`, `transfer()`, `withdraw()`
 - Root history ring buffer (100 entries)
 - Compliance oracle integration via `IComplianceOracle`
+- ERC-20 token escrow via `IERC20Dispatcher` (deposit: `transferFrom`, withdraw: `transfer`)
+- Pluggable proof verification via `IProofVerifier` dispatcher
+- Pausable by owner: `pause()`, `unpause()`
+- Fee recipient configuration: `set_fee_recipient()`
+- `MockVerifier` — Validates proof envelope structure and public-input consistency
 
 ### `starkprivacy_stealth`
 

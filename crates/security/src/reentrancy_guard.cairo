@@ -13,6 +13,10 @@ pub mod ReentrancyGuard {
         locked: bool,
     }
 
+    #[event]
+    #[derive(Drop, starknet::Event)]
+    pub enum Event {}
+
     #[generate_trait]
     pub impl ReentrancyGuardImpl<
         TContractState, +HasComponent<TContractState>,
