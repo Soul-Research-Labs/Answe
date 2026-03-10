@@ -1,0 +1,14 @@
+[package]
+name = "starkprivacy_primitives"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+starknet.workspace = true
+
+[dev-dependencies]
+snforge_std.workspace = true
+assert_macros.workspace = true
+
+[tool.scarb]
+allow-prebuilt-plugins = ["snforge_std"]

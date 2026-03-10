@@ -1,0 +1,20 @@
+[package]
+name = "starkprivacy_nullifier"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+starknet.workspace = true
+starkprivacy_primitives = { path = "../primitives" }
+
+[dev-dependencies]
+snforge_std.workspace = true
+assert_macros.workspace = true
+
+[lib]
+
+[[target.starknet-contract]]
+sierra = true
+
+[tool.scarb]
+allow-prebuilt-plugins = ["snforge_std"]

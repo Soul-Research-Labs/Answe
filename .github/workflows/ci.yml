@@ -1,0 +1,76 @@
+name: StarkPrivacy CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  SCARB_VERSION: "2.16.0"
+  SNFORGE_VERSION: "0.57.0"
+  NODE_VERSION: "22"
+
+jobs:
+  cairo-build:
+    name: Cairo Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Scarb
+        uses: software-mansion/setup-scarb@v1
+        with:
+          scarb-version: ${{ env.SCARB_VERSION }}
+
+      - name: Install Starknet Foundry
+        uses: foundry-rs/setup-snfoundry@v3
+        with:
+          starknet-foundry-version: ${{ env.SNFORGE_VERSION }}
+
+      - name: Build contracts
+        run: scarb build
+        working-directory: starkprivacy
+
+      - name: Run Cairo tests
+        run: snforge test --workspace
+        working-directory: starkprivacy
+
+  sdk-test:
+    name: SDK Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: starkprivacy/sdk/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: starkprivacy/sdk
+
+      - name: Type check
+        run: npx tsc --noEmit
+        working-directory: starkprivacy/sdk
+
+      - name: Run SDK tests
+        run: npx vitest run
+        working-directory: starkprivacy/sdk
+
+  cairo-format:
+    name: Cairo Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Scarb
+        uses: software-mansion/setup-scarb@v1
+        with:
+          scarb-version: ${{ env.SCARB_VERSION }}
+
+      - name: Check formatting
+        run: scarb fmt --check
+        working-directory: starkprivacy

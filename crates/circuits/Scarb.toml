@@ -1,0 +1,16 @@
+[package]
+name = "starkprivacy_circuits"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+starknet.workspace = true
+starkprivacy_primitives = { path = "../primitives" }
+starkprivacy_tree = { path = "../tree" }
+
+[dev-dependencies]
+snforge_std.workspace = true
+assert_macros.workspace = true
+
+[tool.scarb]
+allow-prebuilt-plugins = ["snforge_std"]

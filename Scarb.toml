@@ -1,0 +1,70 @@
+[workspace]
+members = [
+    "crates/primitives",
+    "crates/tree",
+    "crates/nullifier",
+    "crates/pool",
+    "crates/stealth",
+    "crates/bridge",
+    "crates/compliance",
+    "crates/circuits",
+    "crates/security",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024_07"
+
+[workspace.dependencies]
+starknet = "2.16.0"
+snforge_std = "0.57.0"
+assert_macros = "2.16.0"
+
+[workspace.tool.scarb]
+allow-prebuilt-plugins = ["snforge_std"]
+
+[workspace.scripts]
+test = "snforge test"
+
+[package]
+name = "starkprivacy"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+starknet.workspace = true
+starkprivacy_primitives = { path = "crates/primitives" }
+starkprivacy_tree = { path = "crates/tree" }
+starkprivacy_nullifier = { path = "crates/nullifier" }
+starkprivacy_pool = { path = "crates/pool" }
+starkprivacy_stealth = { path = "crates/stealth" }
+starkprivacy_bridge = { path = "crates/bridge" }
+starkprivacy_compliance = { path = "crates/compliance" }
+starkprivacy_circuits = { path = "crates/circuits" }
+starkprivacy_security = { path = "crates/security" }
+
+[dev-dependencies]
+snforge_std.workspace = true
+assert_macros.workspace = true
+
+[[target.starknet-contract]]
+sierra = true
+build-external-contracts = [
+    "starkprivacy_pool::PrivacyPool",
+    "starkprivacy_nullifier::NullifierRegistry",
+    "starkprivacy_stealth::StealthRegistry",
+    "starkprivacy_stealth::StealthAccountFactory",
+    "starkprivacy_bridge::BridgeRouter",
+    "starkprivacy_bridge::L1BridgeAdapter",
+    "starkprivacy_bridge::EpochManager",
+    "starkprivacy_bridge::MadaraAdapter",
+    "starkprivacy_compliance::SanctionsOracle",
+    "starkprivacy_security::Timelock",
+    "starkprivacy_security::MultiSig",
+]
+
+[scripts]
+test = "snforge test"
+
+[tool.scarb]
+allow-prebuilt-plugins = ["snforge_std"]

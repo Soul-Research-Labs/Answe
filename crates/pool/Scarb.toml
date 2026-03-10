@@ -1,0 +1,26 @@
+[package]
+name = "starkprivacy_pool"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+starknet.workspace = true
+starkprivacy_primitives = { path = "../primitives" }
+starkprivacy_tree = { path = "../tree" }
+starkprivacy_nullifier = { path = "../nullifier" }
+starkprivacy_compliance = { path = "../compliance" }
+openzeppelin_token = { git = "https://github.com/OpenZeppelin/cairo-contracts.git", tag = "v0.20.0" }
+openzeppelin_security = { git = "https://github.com/OpenZeppelin/cairo-contracts.git", tag = "v0.20.0" }
+openzeppelin_access = { git = "https://github.com/OpenZeppelin/cairo-contracts.git", tag = "v0.20.0" }
+
+[dev-dependencies]
+snforge_std.workspace = true
+assert_macros.workspace = true
+
+[lib]
+
+[[target.starknet-contract]]
+sierra = true
+
+[tool.scarb]
+allow-prebuilt-plugins = ["snforge_std"]

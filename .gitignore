@@ -1,0 +1,17 @@
+target
+.snfoundry_cache/
+snfoundry_trace/
+coverage/
+profile/
+
+# SDK
+sdk/node_modules/
+sdk/dist/
+
+# Scripts
+scripts/.devnet.pid
+scripts/devnet-config.json
+scripts/deployments-*.json
+
+# OS
+.DS_Store

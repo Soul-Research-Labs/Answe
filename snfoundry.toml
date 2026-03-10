@@ -1,0 +1,14 @@
+# Visit https://foundry-rs.github.io/starknet-foundry/appendix/snfoundry-toml.html
+# and https://foundry-rs.github.io/starknet-foundry/projects/configuration.html for more information
+
+[sncast.sepolia]
+url = "https://starknet-sepolia.public.blastapi.io/rpc/v0_7"
+account = "deployer"
+wait-params = { timeout = 300, retry-interval = 10 }
+block-explorer = "Voyager"
+show-explorer-links = true
+
+[sncast.devnet]
+url = "http://127.0.0.1:5050/rpc"
+account = "devnet-deployer"
+wait-params = { timeout = 60, retry-interval = 5 }
