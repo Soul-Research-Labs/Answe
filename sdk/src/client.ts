@@ -407,6 +407,7 @@ export class StarkPrivacyClient {
         stealth.ephemeralPubKey.toString(),
         [],
         note.commitment.toString(),
+        "0",
       ]);
     }
 

@@ -25,11 +25,25 @@ pub trait IStealthAccountFactory<TContractState> {
         ref self: TContractState, salt: felt252, stealth_pub_key: felt252,
     ) -> ContractAddress;
 
+    /// Deploy a stealth account with an optional recovery key.
+    fn deploy_stealth_account_with_recovery(
+        ref self: TContractState,
+        salt: felt252,
+        stealth_pub_key: felt252,
+        recovery_pub_key: felt252,
+    ) -> ContractAddress;
+
+    /// Check if an address was deployed through this factory.
+    fn is_deployed(self: @TContractState, address: ContractAddress) -> bool;
+
     /// Get number of deployed stealth accounts.
     fn get_deployment_count(self: @TContractState) -> u64;
 
     /// Get the account class hash used for deployments.
     fn get_account_class_hash(self: @TContractState) -> felt252;
+
+    /// Get the recovery key for a deployed stealth account.
+    fn get_recovery_key(self: @TContractState, account: ContractAddress) -> felt252;
 }
 
 #[starknet::contract]
@@ -51,6 +65,8 @@ pub mod StealthAccountFactory {
         owner: ContractAddress,
         /// Tracking deployed stealth accounts: address -> deployed flag.
         deployed: Map<ContractAddress, bool>,
+        /// Recovery keys for stealth accounts: account -> recovery_pub_key
+        recovery_keys: Map<ContractAddress, felt252>,
         /// Total deployments count.
         deployment_count: u64,
     }
@@ -85,9 +101,6 @@ pub mod StealthAccountFactory {
             self: @ContractState, salt: felt252,
         ) -> ContractAddress {
             // Deterministic address via CREATE2-like mechanism in Starknet.
-            // In Starknet, deployed address = hash(deployer, salt, class_hash, constructor_args)
-            // This is a simplified version — real deploy_syscall will use same derivation.
-            let class_hash: ClassHash = self.account_class_hash.read().try_into().unwrap();
             let deployer: felt252 = starknet::get_contract_address().into();
             let addr_hash = core::poseidon::poseidon_hash_span(
                 array![deployer, salt, self.account_class_hash.read()].span(),
@@ -123,12 +136,49 @@ pub mod StealthAccountFactory {
             deployed_address
         }
 
+        fn deploy_stealth_account_with_recovery(
+            ref self: ContractState,
+            salt: felt252,
+            stealth_pub_key: felt252,
+            recovery_pub_key: felt252,
+        ) -> ContractAddress {
+            assert!(stealth_pub_key != 0, "invalid stealth pub key");
+            assert!(recovery_pub_key != 0, "invalid recovery pub key");
+
+            let class_hash: ClassHash = self.account_class_hash.read().try_into().unwrap();
+
+            let mut constructor_calldata: Array<felt252> = array![stealth_pub_key];
+
+            let (deployed_address, _) = deploy_syscall(
+                class_hash, salt, constructor_calldata.span(), false,
+            )
+                .unwrap_syscall();
+
+            self.deployed.write(deployed_address, true);
+            self.recovery_keys.write(deployed_address, recovery_pub_key);
+            let count = self.deployment_count.read();
+            self.deployment_count.write(count + 1);
+
+            let caller = get_caller_address();
+            self.emit(StealthAccountDeployed { account_address: deployed_address, salt, deployer: caller });
+
+            deployed_address
+        }
+
+        fn is_deployed(self: @ContractState, address: ContractAddress) -> bool {
+            self.deployed.read(address)
+        }
+
         fn get_deployment_count(self: @ContractState) -> u64 {
             self.deployment_count.read()
         }
 
         fn get_account_class_hash(self: @ContractState) -> felt252 {
             self.account_class_hash.read()
+        }
+
+        fn get_recovery_key(self: @ContractState, account: ContractAddress) -> felt252 {
+            self.recovery_keys.read(account)
         }
     }
 }

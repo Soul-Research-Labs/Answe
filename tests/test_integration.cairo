@@ -154,7 +154,7 @@ fn test_stealth_register_then_pool_deposit() {
     pool.deposit(cm, 100, 0);
 
     // Publish ephemeral key on registry
-    stealth.publish_ephemeral_key(0xE1F01B, array![].span(), cm);
+    stealth.publish_ephemeral_key(0xE1F01B, array![].span(), cm, 0);
 
     assert!(pool.get_leaf_count() == 1, "pool should have stealth deposit");
     assert!(stealth.get_ephemeral_count() == 1, "registry should have ephemeral key");

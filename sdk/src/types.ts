@@ -232,6 +232,7 @@ export const STEALTH_REGISTRY_ABI = [
       { name: "ephemeral_pub_x", type: "felt" },
       { name: "encrypted_note", type: "felt*" },
       { name: "commitment", type: "felt" },
+      { name: "scan_tag", type: "felt" },
     ],
     outputs: [],
   },
@@ -260,6 +261,20 @@ export const STEALTH_REGISTRY_ABI = [
       { name: "ephemeral_pub_x", type: "felt" },
       { name: "commitment", type: "felt" },
     ],
+    stateMutability: "view",
+  },
+  {
+    name: "get_encrypted_note_at",
+    type: "function",
+    inputs: [{ name: "index", type: "felt" }],
+    outputs: [{ name: "note", type: "felt*" }],
+    stateMutability: "view",
+  },
+  {
+    name: "get_scan_tag_at",
+    type: "function",
+    inputs: [{ name: "index", type: "felt" }],
+    outputs: [{ name: "scan_tag", type: "felt" }],
     stateMutability: "view",
   },
 ] as const;

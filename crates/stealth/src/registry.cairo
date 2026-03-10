@@ -19,11 +19,13 @@ pub trait IStealthRegistry<TContractState> {
 
     /// Publish an ephemeral public key used to derive a stealth address.
     /// Called by senders after creating a stealth payment.
+    /// `scan_tag` enables recipients to quickly filter without full decryption.
     fn publish_ephemeral_key(
         ref self: TContractState,
         ephemeral_pub_x: felt252,
         encrypted_note: Span<felt252>,
         commitment: felt252,
+        scan_tag: felt252,
     );
 
     /// Get the stealth meta-address for a user.
@@ -38,12 +40,21 @@ pub trait IStealthRegistry<TContractState> {
     fn get_ephemeral_at(
         self: @TContractState, index: u64,
     ) -> (felt252, felt252);
+
+    /// Get the encrypted note data at a given index.
+    fn get_encrypted_note_at(
+        self: @TContractState, index: u64,
+    ) -> Array<felt252>;
+
+    /// Get the scan tag at a given index (for fast filtering).
+    fn get_scan_tag_at(self: @TContractState, index: u64) -> felt252;
 }
 
 #[starknet::contract]
 pub mod StealthRegistry {
     use starknet::{ContractAddress, get_caller_address};
-    use starknet::storage::{Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess, StoragePointerWriteAccess};
+    use starknet::storage::{Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess, StoragePointerWriteAccess, StoragePathEntry};
+    use starkprivacy_stealth::encrypted_note::NOTE_PADDED_SIZE;
 
     #[storage]
     struct Storage {
@@ -53,6 +64,11 @@ pub mod StealthRegistry {
         /// Ephemeral keys published by senders (append-only log)
         ephemeral_pub_x: Map<u64, felt252>,
         ephemeral_commitment: Map<u64, felt252>,
+        /// Encrypted note data: index -> element_index -> felt252
+        encrypted_note_data: Map<u64, Map<u32, felt252>>,
+        encrypted_note_len: Map<u64, u32>,
+        /// Scan tags for fast recipient filtering
+        ephemeral_scan_tag: Map<u64, felt252>,
         ephemeral_count: u64,
     }
 
@@ -77,6 +93,7 @@ pub mod StealthRegistry {
         index: u64,
         ephemeral_pub_x: felt252,
         commitment: felt252,
+        scan_tag: felt252,
         encrypted_note_len: u32,
     }
 
@@ -103,13 +120,26 @@ pub mod StealthRegistry {
             ephemeral_pub_x: felt252,
             encrypted_note: Span<felt252>,
             commitment: felt252,
+            scan_tag: felt252,
         ) {
             assert!(ephemeral_pub_x != 0, "invalid ephemeral pub");
             assert!(commitment != 0, "invalid commitment");
+            assert!(encrypted_note.len() <= NOTE_PADDED_SIZE, "encrypted note too large");
 
             let index = self.ephemeral_count.read();
             self.ephemeral_pub_x.write(index, ephemeral_pub_x);
             self.ephemeral_commitment.write(index, commitment);
+            self.ephemeral_scan_tag.write(index, scan_tag);
+
+            // Store encrypted note data on-chain
+            let note_len = encrypted_note.len();
+            self.encrypted_note_len.write(index, note_len);
+            let mut i: u32 = 0;
+            while i < note_len {
+                self.encrypted_note_data.entry(index).entry(i).write(*encrypted_note.at(i));
+                i += 1;
+            };
+
             self.ephemeral_count.write(index + 1);
 
             self
@@ -118,7 +148,8 @@ pub mod StealthRegistry {
                         index,
                         ephemeral_pub_x,
                         commitment,
-                        encrypted_note_len: encrypted_note.len(),
+                        scan_tag,
+                        encrypted_note_len: note_len,
                     },
                 );
         }
@@ -138,6 +169,25 @@ pub mod StealthRegistry {
         ) -> (felt252, felt252) {
             assert!(index < self.ephemeral_count.read(), "index out of bounds");
             (self.ephemeral_pub_x.read(index), self.ephemeral_commitment.read(index))
+        }
+
+        fn get_encrypted_note_at(
+            self: @ContractState, index: u64,
+        ) -> Array<felt252> {
+            assert!(index < self.ephemeral_count.read(), "index out of bounds");
+            let note_len = self.encrypted_note_len.read(index);
+            let mut result: Array<felt252> = array![];
+            let mut i: u32 = 0;
+            while i < note_len {
+                result.append(self.encrypted_note_data.entry(index).entry(i).read());
+                i += 1;
+            };
+            result
+        }
+
+        fn get_scan_tag_at(self: @ContractState, index: u64) -> felt252 {
+            assert!(index < self.ephemeral_count.read(), "index out of bounds");
+            self.ephemeral_scan_tag.read(index)
         }
     }
 }
