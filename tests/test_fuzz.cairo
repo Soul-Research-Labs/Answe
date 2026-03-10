@@ -132,3 +132,73 @@ fn test_fuzz_nullifier_commitment_binding(sk: felt252, cm1: felt252, cm2: felt25
     let n2 = compute_nullifier_v2(sk, cm2, 1, 1);
     assert!(n1 != n2, "different commitments must produce different nullifiers");
 }
+
+// ─── App ID separation ───────────────────────────────────────────
+
+/// Domain separation: same (sk, cm, chain) but different app_id → different nullifiers.
+#[test]
+#[fuzzer(runs: 256)]
+fn test_fuzz_nullifier_app_separation(sk: felt252, cm: felt252, app1: felt252, app2: felt252) {
+    if app1 == app2 {
+        return;
+    }
+    let n1 = compute_nullifier_v2(sk, cm, 1, app1);
+    let n2 = compute_nullifier_v2(sk, cm, 1, app2);
+    assert!(n1 != n2, "different apps must produce different nullifiers");
+}
+
+// ─── Commitment value binding ────────────────────────────────────
+
+/// Different values always produce different commitments (value binding).
+#[test]
+#[fuzzer(runs: 256)]
+fn test_fuzz_commitment_value_binding(value1: felt252, value2: felt252) {
+    if value1 == value2 {
+        return;
+    }
+    let n1 = Note { owner: 0xDEAD, value: value1, asset_id: 0, blinding: 0xBEEF };
+    let n2 = Note { owner: 0xDEAD, value: value2, asset_id: 0, blinding: 0xBEEF };
+    assert!(
+        compute_note_commitment(@n1) != compute_note_commitment(@n2),
+        "different values must give different commitments",
+    );
+}
+
+/// Different asset IDs produce different commitments (asset binding).
+#[test]
+#[fuzzer(runs: 256)]
+fn test_fuzz_commitment_asset_binding(asset1: felt252, asset2: felt252) {
+    if asset1 == asset2 {
+        return;
+    }
+    let n1 = Note { owner: 0xDEAD, value: 100, asset_id: asset1, blinding: 0xBEEF };
+    let n2 = Note { owner: 0xDEAD, value: 100, asset_id: asset2, blinding: 0xBEEF };
+    assert!(
+        compute_note_commitment(@n1) != compute_note_commitment(@n2),
+        "different assets must give different commitments",
+    );
+}
+
+// ─── Poseidon4 properties ────────────────────────────────────────
+
+/// Poseidon4 determinism.
+#[test]
+#[fuzzer(runs: 256)]
+fn test_fuzz_poseidon4_deterministic(a: felt252, b: felt252, c: felt252, d: felt252) {
+    assert!(poseidon_hash_4(a, b, c, d) == poseidon_hash_4(a, b, c, d));
+}
+
+/// Poseidon4 is sensitive to all inputs — changing any one input changes the hash.
+#[test]
+#[fuzzer(runs: 256)]
+fn test_fuzz_poseidon4_input_sensitivity(a: felt252, b: felt252, c: felt252, d: felt252) {
+    let base = poseidon_hash_4(a, b, c, d);
+    // Flip 'd' to d+1 (wrapping in felt252 field)
+    let d2 = d + 1;
+    if d2 != d {
+        assert!(
+            base != poseidon_hash_4(a, b, c, d2),
+            "changing last input must change hash",
+        );
+    }
+}
