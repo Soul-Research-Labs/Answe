@@ -140,9 +140,16 @@ export function buildBatch(
     envelopes.push(createDummyEnvelope(seq++));
   }
 
-  // Fisher-Yates shuffle so position doesn't reveal real vs. dummy
+  // Rejection sampling shuffle — avoids modular bias
   for (let i = envelopes.length - 1; i > 0; i--) {
-    const j = Number(randomFelt252() % BigInt(i + 1));
+    const bound = BigInt(i + 1);
+    // Rejection sampling: re-draw if value falls in biased zone
+    const maxUnbiased = (2n ** 251n) - ((2n ** 251n) % bound);
+    let r: bigint;
+    do {
+      r = randomFelt252();
+    } while (r >= maxUnbiased);
+    const j = Number(r % bound);
     [envelopes[i], envelopes[j]] = [envelopes[j], envelopes[i]];
   }
 
@@ -169,7 +176,13 @@ export function relayJitter(
   minMs: number = 100,
   maxMs: number = 2000,
 ): Promise<void> {
-  const range = maxMs - minMs;
-  const delay = minMs + Number(randomFelt252() % BigInt(range));
+  const range = BigInt(maxMs - minMs);
+  // Rejection sampling to avoid modular bias
+  const maxUnbiased = (2n ** 251n) - ((2n ** 251n) % range);
+  let r: bigint;
+  do {
+    r = randomFelt252();
+  } while (r >= maxUnbiased);
+  const delay = minMs + Number(r % range);
   return new Promise((resolve) => setTimeout(resolve, delay));
 }

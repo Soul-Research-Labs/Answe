@@ -17,6 +17,8 @@ export interface ProofRequest {
   outputCommitments: Felt252[];
   /** Exit value for withdrawals. */
   exitValue?: bigint;
+  /** Recipient address for withdrawals (relayer needs this). */
+  recipient?: string;
   /** Fee for relayer. */
   fee: bigint;
   /** Raw STARK proof data. */

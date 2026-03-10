@@ -3,12 +3,11 @@
  * and submits transactions on behalf of users so they never touch the
  * pool contract directly (preserving sender anonymity).
  *
- * This is a scaffold; production would add:
- * - Persistent job queue (Redis / SQS)
- * - Fee market / gas estimation
- * - Rate limiting & anti-spam
- * - Nonce management & retry logic
- * - Monitoring / alerting
+ * Features:
+ * - Proof validation with nullifier and fee checks
+ * - Retry with exponential backoff on transient errors
+ * - Sequential nonce management to prevent nonce collisions
+ * - Configurable pending job limits and fee thresholds
  */
 import {
   RpcProvider,
@@ -36,6 +35,8 @@ export interface RelayerConfig {
   minFee?: bigint;
   /** Maximum pending jobs before rejecting. */
   maxPending?: number;
+  /** Maximum retry attempts for failed submissions (default 3). */
+  maxRetries?: number;
 }
 
 export type JobStatus = "pending" | "submitted" | "confirmed" | "failed";
@@ -46,6 +47,7 @@ export interface RelayerJob {
   status: JobStatus;
   txHash?: string;
   error?: string;
+  retries: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -59,9 +61,13 @@ export class Relayer {
   private config: RelayerConfig;
   private jobs: Map<string, RelayerJob> = new Map();
   private nextId = 0;
+  private maxRetries: number;
+  /** Sequential processing queue to prevent nonce collisions. */
+  private processingQueue: Promise<void> = Promise.resolve();
 
   constructor(config: RelayerConfig) {
     this.config = config;
+    this.maxRetries = config.maxRetries ?? 3;
     this.provider = new RpcProvider({ nodeUrl: config.rpcUrl });
     this.account = new Account(
       this.provider,
@@ -91,13 +97,17 @@ export class Relayer {
       id: `relay_${this.nextId++}`,
       proof,
       status: "pending",
+      retries: 0,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
     this.jobs.set(job.id, job);
 
-    // Process asynchronously
-    this.process(job).catch(() => {});
+    // Chain onto processing queue (sequential for nonce safety)
+    this.processingQueue = this.processingQueue
+      .then(() => this.processWithRetry(job))
+      .catch(() => {});
+
     return job.id;
   }
 
@@ -153,31 +163,50 @@ export class Relayer {
       return "Empty proof data";
     }
 
+    // Withdraw must include recipient
+    if (proof.proofType === 2 && !proof.recipient) {
+      return "Withdraw proof must include recipient address";
+    }
+
     return null;
   }
 
-  // ─── Transaction submission ────────────────────────────────────
+  // ─── Transaction submission with retry ─────────────────────────
 
-  private async process(job: RelayerJob): Promise<void> {
-    try {
-      job.status = "submitted";
-      job.updatedAt = Date.now();
+  private async processWithRetry(job: RelayerJob): Promise<void> {
+    while (job.retries <= this.maxRetries) {
+      try {
+        job.status = "submitted";
+        job.updatedAt = Date.now();
 
-      let tx: InvokeFunctionResponse;
+        let tx: InvokeFunctionResponse;
 
-      if (job.proof.proofType === 1) {
-        tx = await this.submitTransfer(job.proof);
-      } else {
-        tx = await this.submitWithdraw(job.proof);
+        if (job.proof.proofType === 1) {
+          tx = await this.submitTransfer(job.proof);
+        } else {
+          tx = await this.submitWithdraw(job.proof);
+        }
+
+        job.txHash = tx.transaction_hash;
+        job.status = "confirmed";
+        job.updatedAt = Date.now();
+        return;
+      } catch (err: unknown) {
+        job.retries++;
+        const msg = err instanceof Error ? err.message : String(err);
+
+        if (job.retries > this.maxRetries) {
+          job.status = "failed";
+          job.error = msg;
+          job.updatedAt = Date.now();
+          return;
+        }
+
+        // Exponential backoff: 500ms, 1s, 2s, 4s...
+        await new Promise((r) => setTimeout(r, 500 * 2 ** (job.retries - 1)));
+        job.status = "pending";
+        job.updatedAt = Date.now();
       }
-
-      job.txHash = tx.transaction_hash;
-      job.status = "confirmed";
-      job.updatedAt = Date.now();
-    } catch (err: unknown) {
-      job.status = "failed";
-      job.error = err instanceof Error ? err.message : String(err);
-      job.updatedAt = Date.now();
     }
   }
 
@@ -196,12 +225,13 @@ export class Relayer {
     proof: ProofRequest,
   ): Promise<InvokeFunctionResponse> {
     const exitValue = proof.exitValue ?? 0n;
+    const recipient = proof.recipient ?? "0";
     return this.poolContract.invoke("withdraw", [
       proof.proofData.map((v) => v.toString()),
       proof.merkleRoot.toString(),
       proof.nullifiers.map((v) => v.toString()),
       proof.outputCommitments[0]?.toString() ?? "0",
-      "0", // recipient placeholder — real relayer would require it in the proof bundle
+      recipient,
       {
         low: (exitValue & ((1n << 128n) - 1n)).toString(),
         high: (exitValue >> 128n).toString(),

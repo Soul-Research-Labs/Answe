@@ -16,7 +16,7 @@ import {
 } from "starknet";
 import { KeyManager } from "./keys.js";
 import { NoteManager, type PrivacyNote } from "./notes.js";
-import { computeNoteCommitment, randomFelt252 } from "./crypto.js";
+import { computeNoteCommitment, computeNullifier, randomFelt252 } from "./crypto.js";
 import {
   PRIVACY_POOL_ABI,
   STEALTH_REGISTRY_ABI,
@@ -33,6 +33,12 @@ import {
   type StealthAddress,
 } from "./stealth.js";
 import { type ProverBackend, LocalProver } from "./stone-prover.js";
+import {
+  ClientMerkleTree,
+  generateTransferProof,
+  generateWithdrawProof,
+} from "./prover.js";
+import { padEnvelope } from "./metadata.js";
 
 export interface StarkPrivacyConfig {
   /** Starknet RPC endpoint URL. */
@@ -60,6 +66,7 @@ export class StarkPrivacyClient {
   readonly keys: KeyManager;
   readonly notes: NoteManager;
   readonly prover: ProverBackend;
+  readonly tree: ClientMerkleTree;
   private account?: Account;
   private poolContract?: Contract;
   private readonly config: StarkPrivacyConfig;
@@ -70,6 +77,7 @@ export class StarkPrivacyClient {
     this.keys = keys;
     this.notes = new NoteManager();
     this.prover = config.prover ?? new LocalProver();
+    this.tree = new ClientMerkleTree();
 
     if (config.account) {
       this.account = new Account(
@@ -162,45 +170,44 @@ export class StarkPrivacyClient {
 
     // Select input notes
     const inputs = this.notes.selectNotes(amount, assetId, this.keys.ownerHash);
-    const totalIn = inputs[0].value + inputs[1].value;
-    const change = totalIn - amount;
 
-    // Create output notes
-    const recipientNote = this.notes.createNote(
+    // Generate proof using the prover backend
+    const result = generateTransferProof({
+      spendingKey: this.keys.spendingKey,
+      inputNotes: inputs,
       recipientOwnerHash,
       amount,
       assetId,
-    );
-    const changeNote = this.notes.createNote(
-      this.keys.ownerHash,
-      change,
-      assetId,
-    );
+      chainId: this.config.chainId,
+      appId: this.config.appId,
+      tree: this.tree,
+    });
 
-    // Compute nullifiers
-    const nullifiers = this.notes.computeNullifiers(
-      this.keys.spendingKey,
-      inputs,
-      this.config.chainId,
-      this.config.appId,
-    );
+    if (!result.success || !result.proof) {
+      throw new Error(`Proof generation failed: ${result.error}`);
+    }
 
-    // Get current root
-    const root = await this.getRoot();
+    const proof = result.proof;
 
-    // Mock proof for MVP
-    const mockProof = ["0x1"];
+    // Pad proof data to ENVELOPE_SIZE for metadata resistance
+    const paddedProof = padEnvelope(proof.proofData);
 
     // Submit transfer
     const tx = await this.poolContract!.invoke("transfer", [
-      mockProof,
-      root.toString(),
-      [nullifiers[0].toString(), nullifiers[1].toString()],
-      [recipientNote.commitment.toString(), changeNote.commitment.toString()],
+      paddedProof.map((v) => v.toString()),
+      proof.merkleRoot.toString(),
+      proof.nullifiers.map((v) => v.toString()),
+      proof.outputCommitments.map((v) => v.toString()),
     ]);
 
     // Mark inputs as spent
     this.notes.markSpent([inputs[0].id, inputs[1].id]);
+
+    // Track output notes
+    const totalIn = inputs[0].value + inputs[1].value;
+    const change = totalIn - amount;
+    const recipientNote = this.notes.createNote(recipientOwnerHash, amount, assetId);
+    const changeNote = this.notes.createNote(this.keys.ownerHash, change, assetId);
 
     return {
       outputNotes: [recipientNote, changeNote],
@@ -225,49 +232,33 @@ export class StarkPrivacyClient {
 
     // Select input notes
     const inputs = this.notes.selectNotes(amount, assetId, this.keys.ownerHash);
-    const totalIn = inputs[0].value + inputs[1].value;
-    const changeAmount = totalIn - amount;
 
-    // Create change note (if any)
-    let changeCommitment: Felt252;
-    let changeNote: PrivacyNote | null = null;
-    if (changeAmount > 0n) {
-      changeNote = this.notes.createNote(
-        this.keys.ownerHash,
-        changeAmount,
-        assetId,
-      );
-      changeCommitment = changeNote.commitment;
-    } else {
-      // No change — use a random commitment for privacy (zero-value note)
-      changeCommitment = computeNoteCommitment({
-        owner: this.keys.ownerHash,
-        value: 0n,
-        assetId,
-        blinding: randomFelt252(),
-      });
+    // Generate withdrawal proof using the prover backend
+    const result = generateWithdrawProof({
+      spendingKey: this.keys.spendingKey,
+      inputNotes: inputs,
+      exitValue: amount,
+      assetId,
+      chainId: this.config.chainId,
+      appId: this.config.appId,
+      tree: this.tree,
+    });
+
+    if (!result.success || !result.proof) {
+      throw new Error(`Proof generation failed: ${result.error}`);
     }
 
-    // Compute nullifiers
-    const nullifiers = this.notes.computeNullifiers(
-      this.keys.spendingKey,
-      inputs,
-      this.config.chainId,
-      this.config.appId,
-    );
+    const proof = result.proof;
 
-    // Get current root
-    const root = await this.getRoot();
-
-    // Mock proof for MVP
-    const mockProof = ["0x1"];
+    // Pad proof data to ENVELOPE_SIZE for metadata resistance
+    const paddedProof = padEnvelope(proof.proofData);
 
     // Submit withdrawal
     const tx = await this.poolContract!.invoke("withdraw", [
-      mockProof,
-      root.toString(),
-      [nullifiers[0].toString(), nullifiers[1].toString()],
-      changeCommitment.toString(),
+      paddedProof.map((v) => v.toString()),
+      proof.merkleRoot.toString(),
+      proof.nullifiers.map((v) => v.toString()),
+      proof.outputCommitments[0]?.toString() ?? "0",
       recipient,
       {
         low: (amount & ((1n << 128n) - 1n)).toString(),
@@ -278,6 +269,13 @@ export class StarkPrivacyClient {
 
     // Mark inputs as spent
     this.notes.markSpent([inputs[0].id, inputs[1].id]);
+
+    // Track change note
+    const totalIn = inputs[0].value + inputs[1].value;
+    const changeAmount = totalIn - amount;
+    const changeNote = changeAmount > 0n
+      ? this.notes.createNote(this.keys.ownerHash, changeAmount, assetId)
+      : null;
 
     return { changeNote, txHash: tx.transaction_hash };
   }
@@ -623,6 +621,49 @@ export class StarkPrivacyClient {
    */
   async checkProverHealth(): Promise<boolean> {
     return this.prover.healthCheck();
+  }
+
+  /**
+   * Sync the local Merkle tree with on-chain commitments.
+   * Call this before generating proofs to ensure Merkle paths are valid.
+   *
+   * @param commitments - Ordered list of on-chain leaf commitments.
+   */
+  syncTree(commitments: Felt252[]): void {
+    this.tree.loadLeaves(commitments);
+  }
+
+  /**
+   * Wait for a transaction to be accepted on-chain.
+   *
+   * @param txHash - Transaction hash to wait for.
+   * @param retryInterval - Polling interval in ms (default 2000).
+   * @param maxRetries - Maximum polling attempts (default 30).
+   */
+  async waitForTransaction(
+    txHash: string,
+    retryInterval: number = 2000,
+    maxRetries: number = 30,
+  ): Promise<void> {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        const receipt = await this.provider.getTransactionReceipt(txHash);
+        const status = (receipt as any).execution_status ?? (receipt as any).status;
+        if (status === "SUCCEEDED" || status === "ACCEPTED_ON_L2" || status === "ACCEPTED_ON_L1") {
+          return;
+        }
+        if (status === "REVERTED" || status === "REJECTED") {
+          throw new Error(`Transaction ${txHash} failed with status: ${status}`);
+        }
+      } catch (err: unknown) {
+        // Transaction not yet available — keep polling
+        if (err instanceof Error && (err.message.includes("failed with status") || err.message.includes("REVERTED"))) {
+          throw err;
+        }
+      }
+      await new Promise((r) => setTimeout(r, retryInterval));
+    }
+    throw new Error(`Transaction ${txHash} not confirmed after ${maxRetries} attempts`);
   }
 
   // ─── Internal ──────────────────────────────────────────────────

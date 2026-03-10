@@ -160,4 +160,37 @@ describe("StarkPrivacyClient", () => {
       expect(client.getBalance(999n)).toBe(0n);
     });
   });
+
+  describe("tree sync", () => {
+    it("client exposes a Merkle tree that can be synced", () => {
+      const client = StarkPrivacyClient.fromSpendingKey(
+        dummyConfig,
+        KeyManager.generate().exportKeys().spendingKey,
+      );
+      expect(client.tree.leafCount).toBe(0);
+      client.syncTree([1n, 2n, 3n]);
+      expect(client.tree.leafCount).toBe(3);
+    });
+
+    it("tree root changes after sync", () => {
+      const client = StarkPrivacyClient.fromSpendingKey(
+        dummyConfig,
+        KeyManager.generate().exportKeys().spendingKey,
+      );
+      const emptyRoot = client.tree.getRoot();
+      client.syncTree([1n]);
+      expect(client.tree.getRoot()).not.toBe(emptyRoot);
+    });
+  });
+
+  describe("prover health", () => {
+    it("local prover health check returns true", async () => {
+      const client = StarkPrivacyClient.fromSpendingKey(
+        dummyConfig,
+        KeyManager.generate().exportKeys().spendingKey,
+      );
+      const healthy = await client.checkProverHealth();
+      expect(healthy).toBe(true);
+    });
+  });
 });
