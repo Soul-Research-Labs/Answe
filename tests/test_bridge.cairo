@@ -164,7 +164,35 @@ fn test_bridge_lock_for_bridge() {
     let nullifiers = (0xAF01, 0xAF02);
 
     bridge.lock_for_bridge(commitment, dest_chain, proof.span(), nullifiers);
-    // If no panic, lock succeeded
+    assert!(bridge.get_lock_count() == 1, "lock count should be 1");
+}
+
+#[test]
+#[should_panic(expected: "commitment already locked")]
+fn test_bridge_duplicate_lock_rejected() {
+    let pool: ContractAddress = 0x999.try_into().unwrap();
+    let address = deploy_bridge_router(pool);
+    let bridge = IBridgeRouterDispatcher { contract_address: address };
+
+    bridge.lock_for_bridge(0xC0AA11, 'ETHEREUM', array![1].span(), (0xAF01, 0xAF02));
+    bridge.lock_for_bridge(0xC0AA11, 'ETHEREUM', array![1].span(), (0xAF03, 0xAF04));
+}
+
+#[test]
+fn test_bridge_authorize_and_revoke_relayer() {
+    let pool: ContractAddress = 0x999.try_into().unwrap();
+    let address = deploy_bridge_router(pool);
+    let bridge = IBridgeRouterDispatcher { contract_address: address };
+
+    let relayer: ContractAddress = 0xBEEF.try_into().unwrap();
+
+    assert!(!bridge.is_authorized_relayer(relayer), "should not be authorized initially");
+
+    bridge.authorize_relayer(relayer);
+    assert!(bridge.is_authorized_relayer(relayer), "should be authorized after authorize");
+
+    bridge.revoke_relayer(relayer);
+    assert!(!bridge.is_authorized_relayer(relayer), "should not be authorized after revoke");
 }
 
 #[test]

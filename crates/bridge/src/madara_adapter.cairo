@@ -77,6 +77,7 @@ pub mod MadaraAdapter {
         StoragePointerReadAccess, StoragePointerWriteAccess,
     };
     use starkprivacy_primitives::hash::poseidon_hash_2;
+    use starkprivacy_pool::pool::{IPrivacyPoolDispatcher, IPrivacyPoolDispatcherTrait};
 
     #[storage]
     struct Storage {
@@ -236,9 +237,9 @@ pub mod MadaraAdapter {
             let count = self.inbound_counts.read(source_chain_id);
             self.inbound_counts.write(source_chain_id, count + 1);
 
-            // TODO: Insert commitment into local pool
-            // IPrivacyPoolDispatcher { contract_address: self.pool.read() }
-            //     .deposit(commitment, amount, asset_id);
+            // Insert commitment into local pool (nominal amount; real value is in ZK proof)
+            let pool = IPrivacyPoolDispatcher { contract_address: self.pool.read() };
+            pool.deposit(commitment, 1_u256, 0);
 
             self.emit(AppchainReceive { commitment, source_chain_id, source_epoch });
         }

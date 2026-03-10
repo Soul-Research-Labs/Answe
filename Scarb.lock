@@ -81,6 +81,7 @@ version = "0.1.0"
 dependencies = [
  "snforge_std",
  "starkprivacy_nullifier",
+ "starkprivacy_pool",
  "starkprivacy_primitives",
 ]
 

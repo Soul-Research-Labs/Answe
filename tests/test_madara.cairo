@@ -5,6 +5,18 @@ use starkprivacy_bridge::madara_adapter::{IMadaraAdapterDispatcher, IMadaraAdapt
 const CHAIN_A: felt252 = 'MADARA_A';
 const CHAIN_B: felt252 = 'MADARA_B';
 
+fn deploy_pool_for_bridge() -> ContractAddress {
+    let contract = declare("PrivacyPool").unwrap().contract_class();
+    let owner: ContractAddress = starknet::contract_address_const::<0x1>();
+    let native_token: ContractAddress = 0.try_into().unwrap();
+    let compliance_oracle: ContractAddress = 0.try_into().unwrap();
+    let mut calldata: Array<felt252> = array![
+        native_token.into(), compliance_oracle.into(), 'SN_SEPOLIA', 'STARKPRIVACY', owner.into(),
+    ];
+    let (address, _) = contract.deploy(@calldata).unwrap();
+    address
+}
+
 fn deploy_madara_adapter(
     chain_id: felt252,
     pool: ContractAddress,
@@ -151,7 +163,7 @@ fn test_sync_epoch_root() {
 
 #[test]
 fn test_receive_from_appchain() {
-    let pool: ContractAddress = 0x999.try_into().unwrap();
+    let pool = deploy_pool_for_bridge();
     let epoch: ContractAddress = 0x888.try_into().unwrap();
     let address = deploy_madara_adapter(CHAIN_A, pool, epoch);
     let adapter = IMadaraAdapterDispatcher { contract_address: address };
@@ -202,8 +214,8 @@ fn test_receive_wrong_epoch_root_rejected() {
 
 #[test]
 fn test_full_cross_appchain_flow() {
-    let pool_a: ContractAddress = 0xA01.try_into().unwrap();
-    let pool_b: ContractAddress = 0xB01.try_into().unwrap();
+    let pool_a = deploy_pool_for_bridge();
+    let pool_b = deploy_pool_for_bridge();
     let epoch_a: ContractAddress = 0xA02.try_into().unwrap();
     let epoch_b: ContractAddress = 0xB02.try_into().unwrap();
 

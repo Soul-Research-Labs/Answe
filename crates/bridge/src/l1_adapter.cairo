@@ -50,6 +50,7 @@ pub mod L1BridgeAdapter {
         Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
         StoragePointerWriteAccess,
     };
+    use starkprivacy_pool::pool::{IPrivacyPoolDispatcher, IPrivacyPoolDispatcherTrait};
 
     #[storage]
     struct Storage {
@@ -170,9 +171,9 @@ pub mod L1BridgeAdapter {
             self.inbound_commitments.write(idx, commitment);
             self.inbound_count.write(idx + 1);
 
-            // TODO: Call pool.deposit(commitment, amount, asset_id) to insert into tree
-            // IPrivacyPoolDispatcher { contract_address: self.pool.read() }
-            //     .deposit(commitment, amount, asset_id);
+            // Insert commitment into the privacy pool's Merkle tree
+            let pool = IPrivacyPoolDispatcher { contract_address: self.pool.read() };
+            pool.deposit(commitment, amount, asset_id);
 
             self
                 .emit(BridgeFromL1Completed { commitment, amount, asset_id, index: idx });
