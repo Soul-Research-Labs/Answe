@@ -115,7 +115,7 @@ starkprivacy/
 │   │   ├── cli.ts          # CLI tool
 │   │   ├── types.ts        # ABIs, ContractAddresses, types
 │   │   └── index.ts        # Public exports
-│   └── src/__tests__/      # 131 unit + integration tests
+│   └── src/__tests__/      # 154 unit + integration tests
 ├── contracts/
 │   └── evm/                # Kakarot EVM adapter (Solidity interfaces)
 ├── tests/              # Cairo integration + fuzz tests (snforge)
@@ -165,7 +165,7 @@ Compiled artifacts are written to `target/dev/`:
 ### 2. Run Cairo Tests
 
 ```bash
-# Run all workspace tests (145 tests, incl. fuzz)
+# Run all workspace tests (130 tests, incl. 15 fuzz × 256 runs)
 snforge test --workspace
 
 # Run only integration tests
@@ -186,7 +186,7 @@ npm install
 # Build TypeScript
 npm run build
 
-# Run tests (131 passing)
+# Run tests (154 passing)
 npm test
 ```
 
@@ -321,12 +321,12 @@ const epoch = await client.getCurrentEpoch();
 
 | Suite                              | Count     | Command                                         |
 | ---------------------------------- | --------- | ----------------------------------------------- |
-| Cairo unit + integration           | 131       | `snforge test --workspace`                      |
-| — governance (Timelock + MultiSig) | 15        | included above                                  |
-| — fuzz / property-based            | 10 (×256) | included above                                  |
-| SDK unit tests                     | 126       | `cd sdk && npm test`                            |
-| SDK integration (devnet)           | 13        | `DEVNET_URL=http://127.0.0.1:5050/rpc npm test` |
-| **Total**                          | **257+**  |                                                 |
+| Cairo unit + integration           | 130       | `snforge test --workspace`                      |
+| — governance (Timelock + MultiSig) | 25        | included above                                  |
+| — fuzz / property-based            | 15 (×256) | included above                                  |
+| SDK unit tests                     | 154       | `cd sdk && npm test`                            |
+| SDK integration (devnet)           | 9         | `DEVNET_URL=http://127.0.0.1:5050/rpc npm test` |
+| **Total**                          | **300+**  |                                                 |
 
 ### Running Integration Tests
 
@@ -424,12 +424,15 @@ DEVNET_URL=http://127.0.0.1:5050/rpc POOL_ADDRESS=0x... npm test
 - [x] Phase 3: Stealth Addresses — Encrypted notes, scanning, AA deployment
 - [x] Phase 4: Cross-Chain — L1 bridge adapter, epoch manager
 - [x] Phase 5: TypeScript SDK & CLI
-- [x] Phase 6: Security hardening — Rate limiting, reentrancy, compliance, metadata resistance
+- [x] Phase 6: Security hardening — Rate limiting, reentrancy, compliance, metadata resistance, fee routing
 - [x] Phase 7: Stone-prover / S-Two integration scaffold (ProverBackend interface)
 - [ ] Phase 8: Starknet Sepolia testnet deployment
 - [x] Phase 9: Madara appchain adapter
 - [x] Phase 10: Kakarot EVM adapter (Solidity interfaces)
-- [~] Phase 11: Formal verification & audit (invariant spec complete — [docs/formal-invariants.md](docs/formal-invariants.md))
+- [x] Phase 11: Governance wiring — MultiSig→Timelock→cross-contract execution, calldata verification
+- [x] Phase 12: SDK production hardening — real prover integration, retry logic, nonce management, bias fixes
+- [x] Phase 13: Testing & quality — 15 fuzz tests (256 runs), 20 SDK edge-case tests, 300+ total tests
+- [~] Phase 14: Formal verification & audit (29 invariants spec'd — [docs/formal-invariants.md](docs/formal-invariants.md))
 
 ---
 

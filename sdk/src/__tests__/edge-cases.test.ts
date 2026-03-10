@@ -2,10 +2,23 @@
  * Edge case tests for SDK correctness.
  */
 import { describe, it, expect } from "vitest";
-import { ClientMerkleTree, generateTransferProof, generateWithdrawProof } from "../prover.js";
+import {
+  ClientMerkleTree,
+  generateTransferProof,
+  generateWithdrawProof,
+} from "../prover.js";
 import { NoteManager } from "../notes.js";
-import { poseidonHash2, randomFelt252, computeNoteCommitment } from "../crypto.js";
-import { padEnvelope, ENVELOPE_SIZE, buildBatch, wrapProof } from "../metadata.js";
+import {
+  poseidonHash2,
+  randomFelt252,
+  computeNoteCommitment,
+} from "../crypto.js";
+import {
+  padEnvelope,
+  ENVELOPE_SIZE,
+  buildBatch,
+  wrapProof,
+} from "../metadata.js";
 import { KeyManager } from "../keys.js";
 import type { ProofRequest } from "../types.js";
 

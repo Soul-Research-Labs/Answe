@@ -133,26 +133,28 @@
 - [x] CI pipeline runs all tests on every push
 - [x] Build reproducibility via pinned scarb + starknet versions
 - [x] Deployment scripts validate deployed bytecode
-- [ ] Multi-sig / timelock on contract upgrades
+- [x] Multi-sig / timelock on contract upgrades (Phase D governance wiring)
 - [ ] Incident response plan
 - [ ] Bug bounty program
 
 ## 10. Testing Coverage
 
-| Component                                  | Tests   | Status         |
-| ------------------------------------------ | ------- | -------------- |
-| Primitives (hash, commitment, nullifier)   | 13      | ✅             |
-| Merkle tree                                | 10      | ✅             |
-| Circuits (transfer, withdraw, verifier)    | 18      | ✅             |
-| Privacy pool                               | 11      | ✅             |
-| Stealth (registry, encrypted notes)        | 16      | ✅             |
-| Bridge (router, L1, epoch, Madara)         | 23      | ✅             |
-| Compliance                                 | 10      | ✅             |
-| Security components                        | 5       | ✅             |
-| SDK (crypto, keys, notes, prover, relayer) | 126     | ✅             |
-| **Total**                                  | **232** | **0 failures** |
+| Component                                  | Tests    | Status         |
+| ------------------------------------------ | -------- | -------------- |
+| Primitives (hash, commitment, nullifier)   | 13       | ✅             |
+| Merkle tree                                | 10       | ✅             |
+| Circuits (transfer, withdraw, verifier)    | 18       | ✅             |
+| Privacy pool                               | 11       | ✅             |
+| Stealth (registry, encrypted notes)        | 16       | ✅             |
+| Bridge (router, L1, epoch, Madara)         | 23       | ✅             |
+| Compliance                                 | 10       | ✅             |
+| Security components                        | 5        | ✅             |
+| Governance (timelock, multisig, wiring)    | 25       | ✅             |
+| Fuzz / property-based (×256 each)          | 15       | ✅             |
+| SDK (crypto, keys, notes, prover, relayer) | 154      | ✅             |
+| **Total**                                  | **300+** | **0 failures** |
 
-- [ ] Property-based / fuzz testing
+- [x] Property-based / fuzz testing (15 fuzz tests × 256 runs each)
 - [ ] Formal verification of critical invariants
 - [ ] Mainnet dry-run with production parameters
 

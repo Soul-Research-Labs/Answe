@@ -144,7 +144,7 @@ export function buildBatch(
   for (let i = envelopes.length - 1; i > 0; i--) {
     const bound = BigInt(i + 1);
     // Rejection sampling: re-draw if value falls in biased zone
-    const maxUnbiased = (2n ** 251n) - ((2n ** 251n) % bound);
+    const maxUnbiased = 2n ** 251n - (2n ** 251n % bound);
     let r: bigint;
     do {
       r = randomFelt252();
@@ -178,7 +178,7 @@ export function relayJitter(
 ): Promise<void> {
   const range = BigInt(maxMs - minMs);
   // Rejection sampling to avoid modular bias
-  const maxUnbiased = (2n ** 251n) - ((2n ** 251n) % range);
+  const maxUnbiased = 2n ** 251n - (2n ** 251n % range);
   let r: bigint;
   do {
     r = randomFelt252();

@@ -62,3 +62,20 @@ All values are approximate L2 gas units.
 | Withdraw full amount        | ~2,258,978 |
 | Note commitment             |    ~27,969 |
 | Nullifier domain separation |    ~41,951 |
+
+## Governance Operations
+
+| Operation                                              |     L2 Gas | L1 Data Gas |
+| ------------------------------------------------------ | ---------: | ----------: |
+| Timelock deploy + initial state                        |   ~340,250 |        ~288 |
+| Timelock `queue` operation                             |   ~956,743 |        ~864 |
+| Timelock `execute` (with cross-contract call)          | ~1,567,845 |        ~864 |
+| Timelock `cancel`                                      |   ~999,573 |        ~864 |
+| Timelock `update_min_delay`                            |   ~582,280 |        ~288 |
+| MultiSig deploy + initial state                        | ~1,034,770 |        ~864 |
+| MultiSig `propose` (auto-approves)                     |   ~997,900 |      ~1,440 |
+| MultiSig `approve` (reaches threshold)                 | ~1,338,990 |      ~1,536 |
+| MultiSig `revoke` approval                             | ~1,742,540 |      ~1,440 |
+| MultiSig `set_timelock`                                |   ~897,050 |      ~1,248 |
+| MultiSig `forward_to_timelock`                         | ~2,585,243 |      ~2,592 |
+| Full governance flow (propose→approve→forward→execute) | ~3,245,945 |      ~2,592 |

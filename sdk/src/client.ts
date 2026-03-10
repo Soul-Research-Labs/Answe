@@ -16,7 +16,11 @@ import {
 } from "starknet";
 import { KeyManager } from "./keys.js";
 import { NoteManager, type PrivacyNote } from "./notes.js";
-import { computeNoteCommitment, computeNullifier, randomFelt252 } from "./crypto.js";
+import {
+  computeNoteCommitment,
+  computeNullifier,
+  randomFelt252,
+} from "./crypto.js";
 import {
   PRIVACY_POOL_ABI,
   STEALTH_REGISTRY_ABI,
@@ -206,8 +210,16 @@ export class StarkPrivacyClient {
     // Track output notes
     const totalIn = inputs[0].value + inputs[1].value;
     const change = totalIn - amount;
-    const recipientNote = this.notes.createNote(recipientOwnerHash, amount, assetId);
-    const changeNote = this.notes.createNote(this.keys.ownerHash, change, assetId);
+    const recipientNote = this.notes.createNote(
+      recipientOwnerHash,
+      amount,
+      assetId,
+    );
+    const changeNote = this.notes.createNote(
+      this.keys.ownerHash,
+      change,
+      assetId,
+    );
 
     return {
       outputNotes: [recipientNote, changeNote],
@@ -273,9 +285,10 @@ export class StarkPrivacyClient {
     // Track change note
     const totalIn = inputs[0].value + inputs[1].value;
     const changeAmount = totalIn - amount;
-    const changeNote = changeAmount > 0n
-      ? this.notes.createNote(this.keys.ownerHash, changeAmount, assetId)
-      : null;
+    const changeNote =
+      changeAmount > 0n
+        ? this.notes.createNote(this.keys.ownerHash, changeAmount, assetId)
+        : null;
 
     return { changeNote, txHash: tx.transaction_hash };
   }
@@ -648,22 +661,35 @@ export class StarkPrivacyClient {
     for (let i = 0; i < maxRetries; i++) {
       try {
         const receipt = await this.provider.getTransactionReceipt(txHash);
-        const status = (receipt as any).execution_status ?? (receipt as any).status;
-        if (status === "SUCCEEDED" || status === "ACCEPTED_ON_L2" || status === "ACCEPTED_ON_L1") {
+        const status =
+          (receipt as any).execution_status ?? (receipt as any).status;
+        if (
+          status === "SUCCEEDED" ||
+          status === "ACCEPTED_ON_L2" ||
+          status === "ACCEPTED_ON_L1"
+        ) {
           return;
         }
         if (status === "REVERTED" || status === "REJECTED") {
-          throw new Error(`Transaction ${txHash} failed with status: ${status}`);
+          throw new Error(
+            `Transaction ${txHash} failed with status: ${status}`,
+          );
         }
       } catch (err: unknown) {
         // Transaction not yet available — keep polling
-        if (err instanceof Error && (err.message.includes("failed with status") || err.message.includes("REVERTED"))) {
+        if (
+          err instanceof Error &&
+          (err.message.includes("failed with status") ||
+            err.message.includes("REVERTED"))
+        ) {
           throw err;
         }
       }
       await new Promise((r) => setTimeout(r, retryInterval));
     }
-    throw new Error(`Transaction ${txHash} not confirmed after ${maxRetries} attempts`);
+    throw new Error(
+      `Transaction ${txHash} not confirmed after ${maxRetries} attempts`,
+    );
   }
 
   // ─── Internal ──────────────────────────────────────────────────

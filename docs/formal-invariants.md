@@ -65,6 +65,14 @@ $$\forall sk, C_1 \neq C_2: \text{nf}(sk, C_1, chain, app) \neq \text{nf}(sk, C_
 
 **Verified by**: Fuzz test `test_fuzz_nullifier_commitment_binding` (256 runs)
 
+### INV-N5: Nullifier App Separation
+
+$$\forall sk, C, chain, app_1 \neq app_2: \text{nf}(sk, C, chain, app_1) \neq \text{nf}(sk, C, chain, app_2)$$
+
+Different application identifiers produce distinct nullifiers, preventing cross-app double-spend.
+
+**Verified by**: Fuzz test `test_fuzz_nullifier_app_separation` (256 runs)
+
 ---
 
 ## 3. Merkle Tree Invariants
@@ -150,6 +158,30 @@ An operation is approved only when the approval count meets or exceeds threshold
 $$\text{is\_approved}(op) \iff \text{approvals}(op) \geq \text{threshold}$$
 
 **Verified by**: `test_multisig_reaches_threshold`, `test_multisig_three_of_three`
+
+### INV-A4: Timelock Calldata Integrity
+
+The `execute` function succeeds only when the provided calldata hashes to the stored calldata hash:
+
+$$\text{execute}(op, \text{calldata}) \text{ succeeds} \implies \text{poseidon\_hash\_span}(\text{calldata}) = \text{stored\_calldata\_hash}(op)$$
+
+**Verified by**: `test_execute_calldata_mismatch_reverts`, `test_full_governance_flow`
+
+### INV-A5: MultiSig→Timelock Forward
+
+A proposal can only be forwarded to timelock after reaching threshold and before execution:
+
+$$\text{forward\_to\_timelock}(prop) \text{ succeeds} \implies \text{approvals}(prop) \geq \text{threshold} \wedge \neg\text{executed}(prop) \wedge \text{timelock} \neq 0$$
+
+**Verified by**: `test_forward_to_timelock`, `test_forward_insufficient_reverts`, `test_forward_without_timelock_reverts`
+
+### INV-A6: Timelock Cross-Contract Execution
+
+On successful execution, the timelock makes an actual cross-contract call with the verified calldata:
+
+$$\text{execute}(op, \text{calldata}) \text{ succeeds} \implies \text{call\_contract\_syscall}(\text{target}(op), \text{selector}(op), \text{calldata})$$
+
+**Verified by**: `test_full_governance_flow` (end-to-end MultiSig→Timelock→target)
 
 ---
 
@@ -247,6 +279,10 @@ $$\text{start}() \text{ while } \text{locked} = \text{true} \implies \text{rever
 | INV-A1    | —        | ✅   | ⬜     | Tested                   |
 | INV-A2    | —        | ✅   | ⬜     | Tested                   |
 | INV-A3    | —        | ✅   | ⬜     | Tested                   |
+| INV-A4    | —        | ✅   | ⬜     | Tested                   |
+| INV-A5    | —        | ✅   | ⬜     | Tested                   |
+| INV-A6    | —        | ✅   | ⬜     | Tested                   |
+| INV-N5    | ✅ (256) | ✅   | ⬜     | Tested                   |
 | INV-X1    | —        | ✅   | ⬜     | Tested                   |
 | INV-X2    | —        | ✅   | ⬜     | Tested                   |
 | INV-X3    | —        | ✅   | ⬜     | Tested                   |
