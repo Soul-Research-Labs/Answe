@@ -17,8 +17,9 @@ pub trait ITimelock<TContractState> {
         delay: u64,
     ) -> felt252;
 
-    /// Execute a queued operation (anyone, after delay has passed).
-    fn execute(ref self: TContractState, operation_id: felt252);
+    /// Execute a queued operation by making the actual cross-contract call.
+    /// Caller must provide the calldata matching the stored calldata_hash.
+    fn execute(ref self: TContractState, operation_id: felt252, calldata: Span<felt252>);
 
     /// Cancel a queued operation (only proposer).
     fn cancel(ref self: TContractState, operation_id: felt252);
@@ -35,6 +36,9 @@ pub trait ITimelock<TContractState> {
     /// Get operation timestamp (0 = not queued).
     fn get_operation_timestamp(self: @TContractState, operation_id: felt252) -> u64;
 
+    /// Get the proposer address.
+    fn get_proposer(self: @TContractState) -> ContractAddress;
+
     /// Update minimum delay (only via timelock itself).
     fn update_min_delay(ref self: TContractState, new_delay: u64);
 }
@@ -42,7 +46,8 @@ pub trait ITimelock<TContractState> {
 #[starknet::contract]
 pub mod Timelock {
     use core::poseidon::poseidon_hash_span;
-    use starknet::{ContractAddress, get_caller_address, get_block_timestamp};
+    use starknet::{ContractAddress, get_caller_address, get_block_timestamp, SyscallResultTrait};
+    use starknet::syscalls::call_contract_syscall;
     use starknet::storage::{
         Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
         StoragePointerWriteAccess,
@@ -157,14 +162,24 @@ pub mod Timelock {
             op_id
         }
 
-        fn execute(ref self: ContractState, operation_id: felt252) {
+        fn execute(ref self: ContractState, operation_id: felt252, calldata: Span<felt252>) {
             assert!(self.status.read(operation_id) == STATUS_PENDING, "not pending");
 
             let now = get_block_timestamp();
             let execute_after = self.timestamps.read(operation_id);
             assert!(now >= execute_after, "too early");
 
+            // Verify calldata matches stored hash
+            let stored_hash = self.calldata_hashes.read(operation_id);
+            let provided_hash = poseidon_hash_span(calldata);
+            assert!(stored_hash == provided_hash, "calldata hash mismatch");
+
             self.status.write(operation_id, STATUS_EXECUTED);
+
+            // Make the actual cross-contract call
+            let target = self.targets.read(operation_id);
+            let selector = self.selectors.read(operation_id);
+            call_contract_syscall(target, selector, calldata).unwrap_syscall();
 
             self.emit(OperationExecuted { operation_id });
         }
@@ -197,6 +212,10 @@ pub mod Timelock {
 
         fn get_operation_timestamp(self: @ContractState, operation_id: felt252) -> u64 {
             self.timestamps.read(operation_id)
+        }
+
+        fn get_proposer(self: @ContractState) -> ContractAddress {
+            self.proposer.read()
         }
 
         fn update_min_delay(ref self: ContractState, new_delay: u64) {

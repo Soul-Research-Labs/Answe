@@ -1,3 +1,4 @@
+use core::poseidon::poseidon_hash_span;
 use snforge_std::{
     declare, ContractClassTrait, DeclareResultTrait, start_cheat_caller_address,
     start_cheat_block_timestamp_global,
@@ -57,15 +58,21 @@ fn test_timelock_execute_after_delay() {
     start_cheat_caller_address(tl.contract_address, owner());
     start_cheat_block_timestamp_global(1000);
 
-    let target: ContractAddress = 0x999.try_into().unwrap();
-    let op_id = tl.queue(target, 'update', 0xABC, 60);
+    // Use timelock itself as target: call update_min_delay(120)
+    let target = tl.contract_address;
+    let selector = selector!("update_min_delay");
+    let calldata: Array<felt252> = array![120]; // new_delay = 120
+    let calldata_hash = poseidon_hash_span(calldata.span());
+    let op_id = tl.queue(target, selector, calldata_hash, 60);
 
     // Advance time past delay
     start_cheat_block_timestamp_global(1061);
     assert!(tl.is_ready(op_id), "should be ready after delay");
 
-    tl.execute(op_id);
+    tl.execute(op_id, calldata.span());
     assert!(!tl.is_pending(op_id), "should no longer be pending");
+    // Verify the cross-contract call actually updated the delay
+    assert!(tl.get_min_delay() == 120, "delay should have been updated by execute");
 }
 
 #[test]
@@ -75,11 +82,14 @@ fn test_timelock_execute_too_early_rejected() {
     start_cheat_caller_address(tl.contract_address, owner());
     start_cheat_block_timestamp_global(1000);
 
-    let target: ContractAddress = 0x999.try_into().unwrap();
-    let op_id = tl.queue(target, 'update', 0xABC, 60);
+    let target = tl.contract_address;
+    let selector = selector!("update_min_delay");
+    let calldata: Array<felt252> = array![120];
+    let calldata_hash = poseidon_hash_span(calldata.span());
+    let op_id = tl.queue(target, selector, calldata_hash, 60);
 
     // Try to execute immediately
-    tl.execute(op_id);
+    tl.execute(op_id, calldata.span());
 }
 
 #[test]
@@ -241,4 +251,193 @@ fn test_multisig_three_of_three() {
     start_cheat_caller_address(ms.contract_address, signer_c());
     ms.approve(id);
     assert!(ms.is_approved(id), "should be approved now (3/3)");
+}
+
+// ─── Timelock: get_proposer ──────────────────────────────────────
+
+#[test]
+fn test_timelock_get_proposer() {
+    let tl = deploy_timelock(owner(), 60);
+    assert!(tl.get_proposer() == owner(), "proposer should be owner");
+}
+
+// ─── Timelock: calldata hash mismatch ────────────────────────────
+
+#[test]
+#[should_panic(expected: "calldata hash mismatch")]
+fn test_timelock_execute_calldata_mismatch() {
+    let tl = deploy_timelock(owner(), 60);
+    start_cheat_caller_address(tl.contract_address, owner());
+    start_cheat_block_timestamp_global(1000);
+
+    let target = tl.contract_address;
+    let selector = selector!("update_min_delay");
+    let calldata: Array<felt252> = array![120];
+    let calldata_hash = poseidon_hash_span(calldata.span());
+    let op_id = tl.queue(target, selector, calldata_hash, 60);
+
+    start_cheat_block_timestamp_global(1061);
+
+    // Provide wrong calldata
+    let wrong_calldata: Array<felt252> = array![999];
+    tl.execute(op_id, wrong_calldata.span());
+}
+
+// ─── MultiSig: set_timelock ─────────────────────────────────────
+
+#[test]
+fn test_multisig_set_timelock() {
+    let ms = deploy_multisig(2, 3);
+    let tl = deploy_timelock(owner(), 60);
+
+    start_cheat_caller_address(ms.contract_address, signer_a());
+    ms.set_timelock(tl.contract_address);
+    assert!(ms.get_timelock() == tl.contract_address, "timelock should be set");
+}
+
+#[test]
+#[should_panic(expected: "timelock already set")]
+fn test_multisig_set_timelock_twice_rejected() {
+    let ms = deploy_multisig(2, 3);
+    let tl = deploy_timelock(owner(), 60);
+
+    start_cheat_caller_address(ms.contract_address, signer_a());
+    ms.set_timelock(tl.contract_address);
+    // Second call should fail
+    ms.set_timelock(tl.contract_address);
+}
+
+#[test]
+#[should_panic(expected: "not a signer")]
+fn test_multisig_set_timelock_non_signer_rejected() {
+    let ms = deploy_multisig(2, 3);
+    let tl = deploy_timelock(owner(), 60);
+
+    start_cheat_caller_address(ms.contract_address, owner()); // not a signer
+    ms.set_timelock(tl.contract_address);
+}
+
+// ─── MultiSig: forward_to_timelock ──────────────────────────────
+
+#[test]
+fn test_multisig_forward_to_timelock() {
+    let ms = deploy_multisig(2, 3);
+    // Timelock with multisig as proposer
+    let tl = deploy_timelock(ms.contract_address, 60);
+
+    // Set timelock on multisig
+    start_cheat_caller_address(ms.contract_address, signer_a());
+    ms.set_timelock(tl.contract_address);
+
+    // Propose an operation
+    let target: ContractAddress = 0x999.try_into().unwrap();
+    let calldata_hash: felt252 = 0xABC;
+    let id = ms.propose(target, 'do_thing', calldata_hash);
+
+    // Second signer approves
+    start_cheat_caller_address(ms.contract_address, signer_b());
+    ms.approve(id);
+    assert!(ms.is_approved(id), "should be approved");
+
+    // Set block timestamp for timelock queue
+    start_cheat_block_timestamp_global(1000);
+
+    // Forward to timelock
+    start_cheat_caller_address(ms.contract_address, signer_a());
+    let op_id = ms.forward_to_timelock(id);
+
+    // Verify the operation is queued in the timelock
+    assert!(tl.is_pending(op_id), "should be pending in timelock");
+}
+
+#[test]
+#[should_panic(expected: "not enough approvals")]
+fn test_multisig_forward_insufficient_approvals_rejected() {
+    let ms = deploy_multisig(2, 3);
+    let tl = deploy_timelock(ms.contract_address, 60);
+
+    start_cheat_caller_address(ms.contract_address, signer_a());
+    ms.set_timelock(tl.contract_address);
+
+    let target: ContractAddress = 0x999.try_into().unwrap();
+    let id = ms.propose(target, 'do_thing', 0xABC);
+    // Only 1 approval (from proposer), need 2
+    ms.forward_to_timelock(id);
+}
+
+#[test]
+#[should_panic(expected: "already executed")]
+fn test_multisig_forward_twice_rejected() {
+    let ms = deploy_multisig(2, 3);
+    let tl = deploy_timelock(ms.contract_address, 60);
+
+    start_cheat_caller_address(ms.contract_address, signer_a());
+    ms.set_timelock(tl.contract_address);
+
+    let target: ContractAddress = 0x999.try_into().unwrap();
+    let id = ms.propose(target, 'do_thing', 0xABC);
+
+    start_cheat_caller_address(ms.contract_address, signer_b());
+    ms.approve(id);
+
+    start_cheat_block_timestamp_global(1000);
+    start_cheat_caller_address(ms.contract_address, signer_a());
+    ms.forward_to_timelock(id);
+    // Second forward should fail
+    ms.forward_to_timelock(id);
+}
+
+#[test]
+#[should_panic(expected: "timelock not set")]
+fn test_multisig_forward_without_timelock_rejected() {
+    let ms = deploy_multisig(2, 3);
+
+    start_cheat_caller_address(ms.contract_address, signer_a());
+    let target: ContractAddress = 0x999.try_into().unwrap();
+    let id = ms.propose(target, 'do_thing', 0xABC);
+
+    start_cheat_caller_address(ms.contract_address, signer_b());
+    ms.approve(id);
+
+    start_cheat_caller_address(ms.contract_address, signer_a());
+    ms.forward_to_timelock(id);
+}
+
+// ─── End-to-end: MultiSig → Timelock → Execute ──────────────────
+
+#[test]
+fn test_full_governance_flow() {
+    // Deploy timelock with multisig as proposer, min_delay=60
+    let ms = deploy_multisig(2, 3);
+    let tl = deploy_timelock(ms.contract_address, 60);
+
+    // Wire multisig to timelock
+    start_cheat_caller_address(ms.contract_address, signer_a());
+    ms.set_timelock(tl.contract_address);
+
+    // Propose: update timelock's min_delay to 120
+    let target = tl.contract_address;
+    let selector = selector!("update_min_delay");
+    let calldata: Array<felt252> = array![120];
+    let calldata_hash = poseidon_hash_span(calldata.span());
+    let prop_id = ms.propose(target, selector, calldata_hash);
+
+    // Approve to threshold
+    start_cheat_caller_address(ms.contract_address, signer_b());
+    ms.approve(prop_id);
+
+    // Forward to timelock
+    start_cheat_block_timestamp_global(1000);
+    start_cheat_caller_address(ms.contract_address, signer_a());
+    let op_id = ms.forward_to_timelock(prop_id);
+    assert!(tl.is_pending(op_id), "op should be pending");
+
+    // Advance time past delay and execute
+    start_cheat_block_timestamp_global(1061);
+    // Execute needs to be called by someone — the timelock checks pending, not caller
+    start_cheat_caller_address(tl.contract_address, ms.contract_address);
+    tl.execute(op_id, calldata.span());
+
+    assert!(!tl.is_pending(op_id), "op should no longer be pending");
+    assert!(tl.get_min_delay() == 120, "delay should have been updated to 120");
 }

@@ -21,6 +21,15 @@ pub trait IMultiSig<TContractState> {
     /// Revoke a previous approval (the signer who approved).
     fn revoke(ref self: TContractState, proposal_id: u64);
 
+    /// Forward an approved proposal to the Timelock for queuing.
+    fn forward_to_timelock(ref self: TContractState, proposal_id: u64) -> felt252;
+
+    /// Set the Timelock contract address (once, by any signer).
+    fn set_timelock(ref self: TContractState, timelock: ContractAddress);
+
+    /// Get the Timelock address.
+    fn get_timelock(self: @TContractState) -> ContractAddress;
+
     /// Get number of signers.
     fn get_signer_count(self: @TContractState) -> u32;
 
@@ -44,6 +53,7 @@ pub mod MultiSig {
         Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
         StoragePointerWriteAccess,
     };
+    use crate::timelock::{ITimelockDispatcher, ITimelockDispatcherTrait};
 
     const MAX_SIGNERS: u32 = 10;
 
@@ -67,8 +77,10 @@ pub mod MultiSig {
         approval_counts: Map<u64, u32>,
         /// (proposal_id, signer) -> has_approved
         approvals: Map<(u64, ContractAddress), bool>,
-        /// proposal_id -> executed
+        /// proposal_id -> executed/forwarded
         executed: Map<u64, bool>,
+        /// Timelock contract address for forwarding
+        timelock: ContractAddress,
     }
 
     #[event]
@@ -77,6 +89,7 @@ pub mod MultiSig {
         ProposalCreated: ProposalCreated,
         ProposalApproved: ProposalApproved,
         ApprovalRevoked: ApprovalRevoked,
+        ProposalForwarded: ProposalForwarded,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -101,6 +114,13 @@ pub mod MultiSig {
         #[key]
         pub proposal_id: u64,
         pub signer: ContractAddress,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct ProposalForwarded {
+        #[key]
+        pub proposal_id: u64,
+        pub timelock_op_id: felt252,
     }
 
     #[constructor]
@@ -195,6 +215,48 @@ pub mod MultiSig {
             self.approval_counts.write(proposal_id, count);
 
             self.emit(ApprovalRevoked { proposal_id, signer: caller });
+        }
+
+        fn forward_to_timelock(ref self: ContractState, proposal_id: u64) -> felt252 {
+            let caller = get_caller_address();
+            assert!(self.is_signer_map.read(caller), "not a signer");
+            assert!(proposal_id < self.proposal_count.read(), "invalid proposal");
+            assert!(!self.executed.read(proposal_id), "already executed");
+            assert!(
+                self.approval_counts.read(proposal_id) >= self.threshold.read(),
+                "not enough approvals",
+            );
+
+            let timelock_addr = self.timelock.read();
+            let zero: ContractAddress = 0.try_into().unwrap();
+            assert!(timelock_addr != zero, "timelock not set");
+
+            self.executed.write(proposal_id, true);
+
+            let target = self.proposal_targets.read(proposal_id);
+            let selector = self.proposal_selectors.read(proposal_id);
+            let calldata_hash = self.proposal_calldata_hashes.read(proposal_id);
+
+            let timelock = ITimelockDispatcher { contract_address: timelock_addr };
+            let min_delay = timelock.get_min_delay();
+            let op_id = timelock.queue(target, selector, calldata_hash, min_delay);
+
+            self.emit(ProposalForwarded { proposal_id, timelock_op_id: op_id });
+
+            op_id
+        }
+
+        fn set_timelock(ref self: ContractState, timelock: ContractAddress) {
+            let caller = get_caller_address();
+            assert!(self.is_signer_map.read(caller), "not a signer");
+            let zero: ContractAddress = 0.try_into().unwrap();
+            assert!(self.timelock.read() == zero, "timelock already set");
+            assert!(timelock != zero, "invalid timelock address");
+            self.timelock.write(timelock);
+        }
+
+        fn get_timelock(self: @ContractState) -> ContractAddress {
+            self.timelock.read()
         }
 
         fn get_signer_count(self: @ContractState) -> u32 {
