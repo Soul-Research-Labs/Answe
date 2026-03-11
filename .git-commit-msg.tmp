@@ -1,1 +1,1 @@
-SDK ABIs + deploy: add KakarotAdapter, UpgradeableProxy, NullifierRegistry, SanctionsOracle, Timelock, MultiSig ABIs to types.ts; add kakarotAdapter/upgradeableProxy to ContractAddresses; update deploy.sh with steps 9-10
+README: comprehensive update -- KakarotAdapter, UpgradeableProxy, test counts (223 Cairo + 197 SDK = 420+), architecture diagram, crate reference, formal specs link, roadmap

@@ -31,14 +31,20 @@ StarkPrivacy port the core concepts from **ZAseon** (cross-chain ZK privacy midd
 │  └─────────────┘  └──────────────┘  └───────────────────┘   │
 │                                                             │
 │  ┌─────────────────────────────────────────────────────┐    │
-│  │ BridgeRouter / L1BridgeAdapter                      │    │
+│  │ BridgeRouter / L1BridgeAdapter / MadaraAdapter      │    │
 │  │ L1↔L2 messaging · Madara inter-chain                │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │ KakarotAdapter (EVM↔Cairo)                          │    │
+│  │ EVM deposits/transfers/withdrawals via Kakarot      │    │
+│  │ Gas fee translation · Pausable                      │    │
 │  └─────────────────────────────────────────────────────┘    │
 │                                                             │
 │  ┌─────────────────────────────────────────────────────┐    │
 │  │ Security & Governance                               │    │
 │  │ RateLimiter · ReentrancyGuard · SanctionsOracle     │    │
-│  │ Timelock · MultiSig (M-of-N)                        │    │
+│  │ Timelock · MultiSig (M-of-N) · UpgradeableProxy     │    │
 │  └─────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -62,6 +68,8 @@ StarkPrivacy port the core concepts from **ZAseon** (cross-chain ZK privacy midd
 - **L1↔L2 messaging** — Privacy-preserving bridges using Starknet's native `send_message_to_l1`
 - **Epoch manager** — Cross-chain nullifier synchronization via Poseidon accumulators
 - **ZK-Bound State Locks** — Lock state on one chain, unlock on another with ZK proof
+- **Madara appchain adapter** — Cross-appchain lock/receive with peer registration and epoch root sync
+- **Kakarot EVM adapter** — EVM-compatible deposits/transfers/withdrawals via Kakarot, with gas fee translation and pause/unpause
 
 ### Security
 
@@ -72,6 +80,7 @@ StarkPrivacy port the core concepts from **ZAseon** (cross-chain ZK privacy midd
 - **Metadata resistance** — Fixed-size 64-felt proof envelopes with dummy padding
 - **Timelock governance** — Delayed-execution admin operations with configurable delay
 - **MultiSig** — M-of-N multisignature governance for protocol upgrades
+- **UpgradeableProxy** — UUPS-style upgrade proxy with dual authorization (governor + emergency governor) via `replace_class_syscall`
 - **Pausable pool** — Owner can pause/unpause deposits, transfers, and withdrawals
 - **ERC-20 integration** — Real token transfers via `IERC20Dispatcher` (configurable; zero-address = balance-tracking only)
 - **Proof verifier** — Pluggable `IProofVerifier` contract for STARK proof validation (MockVerifier for testnet)
@@ -96,10 +105,10 @@ starkprivacy/
 │   ├── nullifier/      # NullifierRegistry contract
 │   ├── pool/           # PrivacyPool contract (deposit/transfer/withdraw)
 │   ├── stealth/        # StealthRegistry, EncryptedNote, StealthAccountFactory
-│   ├── bridge/         # BridgeRouter, L1BridgeAdapter, EpochManager, MadaraAdapter
+│   ├── bridge/         # BridgeRouter, L1BridgeAdapter, EpochManager, MadaraAdapter, KakarotAdapter
 │   ├── compliance/     # IComplianceOracle, SanctionsOracle
 │   ├── circuits/       # TransferCircuit, WithdrawCircuit, Verifier, Metadata
-│   └── security/       # RateLimiter, ReentrancyGuard, Timelock, MultiSig
+│   └── security/       # RateLimiter, ReentrancyGuard, Timelock, MultiSig, UpgradeableProxy
 ├── sdk/                # @starkprivacy/sdk — TypeScript SDK + CLI
 │   ├── src/
 │   │   ├── crypto.ts       # Poseidon/Pedersen wrappers (starknet.js)
@@ -115,12 +124,13 @@ starkprivacy/
 │   │   ├── cli.ts          # CLI tool
 │   │   ├── types.ts        # ABIs, ContractAddresses, types
 │   │   └── index.ts        # Public exports
-│   └── src/__tests__/      # 154 unit + integration tests
+│   └── src/__tests__/      # 197+ unit + integration tests
 ├── contracts/
 │   └── evm/                # Kakarot EVM adapter (Solidity interfaces)
 ├── tests/              # Cairo integration + fuzz tests (snforge)
-├── scripts/            # Deployment & devnet scripts
-├── docs/               # Gas benchmarks, protocol spec, security checklist, formal invariants
+├── scripts/            # Deployment, devnet & monitoring scripts
+├── docs/               # Gas benchmarks, protocol spec, security checklist, formal invariants,
+│                       # formal specs (TLA+), incident response runbook
 ├── .github/workflows/  # CI/CD pipeline
 ├── Scarb.toml          # Cairo workspace configuration
 └── snfoundry.toml      # Starknet Foundry configuration
@@ -161,11 +171,13 @@ Compiled artifacts are written to `target/dev/`:
 - `starkprivacy_MockVerifier.contract_class.json`
 - `starkprivacy_Timelock.contract_class.json`
 - `starkprivacy_MultiSig.contract_class.json`
+- `starkprivacy_KakarotAdapter.contract_class.json`
+- `starkprivacy_UpgradeableProxy.contract_class.json`
 
 ### 2. Run Cairo Tests
 
 ```bash
-# Run all workspace tests (130 tests, incl. 15 fuzz × 256 runs)
+# Run all workspace tests (223 tests, incl. 15 fuzz × 256 runs)
 snforge test --workspace
 
 # Run only integration tests
@@ -186,7 +198,7 @@ npm install
 # Build TypeScript
 npm run build
 
-# Run tests (154 passing)
+# Run tests (197+ passing)
 npm test
 ```
 
@@ -319,14 +331,17 @@ const epoch = await client.getCurrentEpoch();
 
 ## Testing
 
-| Suite                              | Count     | Command                                         |
-| ---------------------------------- | --------- | ----------------------------------------------- |
-| Cairo unit + integration           | 130       | `snforge test --workspace`                      |
-| — governance (Timelock + MultiSig) | 25        | included above                                  |
-| — fuzz / property-based            | 15 (×256) | included above                                  |
-| SDK unit tests                     | 154       | `cd sdk && npm test`                            |
-| SDK integration (devnet)           | 9         | `DEVNET_URL=http://127.0.0.1:5050/rpc npm test` |
-| **Total**                          | **300+**  |                                                 |
+| Suite                                | Count     | Command                                         |
+| ------------------------------------ | --------- | ----------------------------------------------- |
+| Cairo unit + integration             | 223       | `snforge test --workspace`                      |
+| — governance (Timelock + MultiSig)   | 25        | included above                                  |
+| — cross-chain (Kakarot + Madara)     | 28        | included above                                  |
+| — proxy (UpgradeableProxy)           | 9         | included above                                  |
+| — fuzz / property-based              | 15 (×256) | included above                                  |
+| SDK unit tests                       | 197+      | `cd sdk && npm test`                            |
+| SDK indexer + mock integration       | 19        | included above                                  |
+| SDK integration (devnet)             | 9         | `DEVNET_URL=http://127.0.0.1:5050/rpc npm test` |
+| **Total**                            | **420+**  |                                                 |
 
 ### Running Integration Tests
 
@@ -382,6 +397,7 @@ DEVNET_URL=http://127.0.0.1:5050/rpc POOL_ADDRESS=0x... npm test
 - `L1BridgeAdapter` — Ethereum L1↔L2 messaging via `send_message_to_l1_syscall`
 - `EpochManager` — Sequential epochs with Poseidon accumulator roots
 - `MadaraAdapter` — Cross-appchain adapter: peer registration, lock/receive, epoch root sync
+- `KakarotAdapter` — EVM↔Cairo bridge via Kakarot: `evm_deposit()`, `evm_transfer()`, `evm_withdraw()`, gas fee estimation, pause/unpause
 
 ### `starkprivacy_circuits`
 
@@ -396,6 +412,7 @@ DEVNET_URL=http://127.0.0.1:5050/rpc POOL_ADDRESS=0x... npm test
 - `ReentrancyGuardComponent` — Simple lock flag guard
 - `Timelock` — Delayed execution governance: `queue()`, `execute()`, `cancel()`, configurable `min_delay`
 - `MultiSig` — M-of-N multisignature: `propose()`, `approve()`, `revoke()` (up to 10 signers)
+- `UpgradeableProxy` — UUPS-style upgrade proxy: `upgrade()`, `set_governor()`, `set_emergency_governor()`, dual-auth with `replace_class_syscall`
 
 ### `starkprivacy_compliance`
 
@@ -431,8 +448,8 @@ DEVNET_URL=http://127.0.0.1:5050/rpc POOL_ADDRESS=0x... npm test
 - [x] Phase 10: Kakarot EVM adapter (Solidity interfaces)
 - [x] Phase 11: Governance wiring — MultiSig→Timelock→cross-contract execution, calldata verification
 - [x] Phase 12: SDK production hardening — real prover integration, retry logic, nonce management, bias fixes
-- [x] Phase 13: Testing & quality — 15 fuzz tests (256 runs), 20 SDK edge-case tests, 300+ total tests
-- [~] Phase 14: Formal verification & audit (29 invariants spec'd — [docs/formal-invariants.md](docs/formal-invariants.md))
+- [x] Phase 13: Testing & quality — 15 fuzz tests (256 runs), 20 SDK edge-case tests, 420+ total tests
+- [~] Phase 14: Formal verification & audit (29 invariants spec'd — [docs/formal-invariants.md](docs/formal-invariants.md), TLA+ specs — [docs/formal-specs.md](docs/formal-specs.md))
 - [x] Phase 15: Production hardening — StarkVerifier on-chain, felt252 validation, tx confirmation, relayer persistence
 - [ ] Phase 16: Mainnet deployment — real governance signers, production prover, monitoring
 
