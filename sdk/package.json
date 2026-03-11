@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "DEVNET_URL=http://127.0.0.1:5050/rpc vitest run",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "docs": "typedoc"
   },
   "keywords": [
     "starknet",
@@ -28,6 +29,7 @@
   "devDependencies": {
     "typescript": "^5.7.0",
     "vitest": "^3.0.0",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "typedoc": "^0.27.0"
   }
 }

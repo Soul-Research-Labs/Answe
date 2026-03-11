@@ -13,6 +13,7 @@ import { PRIVACY_POOL_ABI, STEALTH_REGISTRY_ABI } from "./types.js";
 
 // ─── Types ───────────────────────────────────────────────────────
 
+/** A deposit event parsed from on-chain data. */
 export interface IndexedDeposit {
   commitment: Felt252;
   amount: bigint;
@@ -22,18 +23,21 @@ export interface IndexedDeposit {
   txHash: string;
 }
 
+/** A nullifier event parsed from on-chain data. */
 export interface IndexedNullifier {
   nullifier: Felt252;
   blockNumber: number;
   txHash: string;
 }
 
+/** A stealth payment match found during scanning. */
 export interface StealthMatch {
   ephemeralPubKey: Felt252;
   commitment: Felt252;
   index: number;
 }
 
+/** Progress metrics for the indexer's scanning state. */
 export interface ScanProgress {
   lastBlockScanned: number;
   depositsFound: number;

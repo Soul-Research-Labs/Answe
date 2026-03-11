@@ -15,8 +15,11 @@ import type { Felt252, ProofRequest } from "./types.js";
 /** Every proof envelope is exactly this many felt252 elements. */
 export const ENVELOPE_SIZE = 64;
 
+/** Proof type identifier: private transfer (2-in-2-out). */
 export const PROOF_TYPE_TRANSFER = 1;
+/** Proof type identifier: withdrawal to public address. */
 export const PROOF_TYPE_WITHDRAW = 2;
+/** Proof type identifier: dummy/padding proof for uniform batch sizing. */
 export const PROOF_TYPE_DUMMY = 3;
 
 // ─── Proof Envelope ──────────────────────────────────────────────

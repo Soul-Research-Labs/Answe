@@ -13,7 +13,9 @@ import { ec, encode } from "starknet";
 import { poseidonHash2 } from "./crypto.js";
 import type { Felt252 } from "./types.js";
 
+/** Secret key that authorizes note spending. Derived from a seed via Poseidon. */
 export type SpendingKey = Felt252;
+/** Key used for scanning stealth payments without spending authority. */
 export type ViewingKey = Felt252;
 
 export interface PrivacyKeyPair {

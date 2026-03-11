@@ -1,1 +1,1 @@
-J3: upgradeable proxy contract -- UUPS-style with governor + emergency governor, 9 tests
+J4: API docs -- TypeDoc config, TSDoc comments on all exported types, docs script in package.json

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["src/index.ts"],
+  "out": "docs",
+  "name": "StarkPrivacy SDK",
+  "readme": "none",
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "includeVersion": true,
+  "categorizeByGroup": true,
+  "navigationLinks": {
+    "GitHub": "https://github.com/Soul-Research-Labs/Answe",
+    "Protocol Spec": "../docs/protocol-spec.md"
+  },
+  "plugin": [],
+  "tsconfig": "tsconfig.json"
+}

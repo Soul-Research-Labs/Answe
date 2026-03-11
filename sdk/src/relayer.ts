@@ -45,8 +45,10 @@ export interface RelayerConfig {
   confirmationTimeoutMs?: number;
 }
 
+/** Lifecycle status of a relayer job. */
 export type JobStatus = "pending" | "submitted" | "confirmed" | "failed";
 
+/** A relayer job encapsulating a proof submission and its execution state. */
 export interface RelayerJob {
   id: string;
   proof: ProofRequest;

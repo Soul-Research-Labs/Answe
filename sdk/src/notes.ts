@@ -22,6 +22,7 @@ import {
   pbkdf2Sync,
 } from "crypto";
 
+/** Lifecycle status of a privacy note: unspent (available), spent (nullified), or pending (in-flight). */
 export type NoteStatus = "unspent" | "spent" | "pending";
 
 export interface PrivacyNote {
