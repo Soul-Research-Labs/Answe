@@ -1,0 +1,237 @@
+# StarkPrivacy — Incident Response Runbook
+
+## Table of Contents
+
+1. [Severity Levels](#severity-levels)
+2. [Incident Detection](#incident-detection)
+3. [Response Procedures](#response-procedures)
+4. [Scenario Playbooks](#scenario-playbooks)
+5. [Communication Templates](#communication-templates)
+6. [Post-Incident Checklist](#post-incident-checklist)
+
+---
+
+## Severity Levels
+
+| Level | Name | Description | Response Time | Escalation |
+|-------|------|-------------|---------------|------------|
+| P0 | Critical | Funds at risk, active exploit | Immediate | All on-call + leadership |
+| P1 | High | Protocol degraded, potential exploit | < 15 min | On-call + security lead |
+| P2 | Medium | Feature broken, no funds at risk | < 1 hour | On-call engineer |
+| P3 | Low | Cosmetic, monitoring noise | < 24 hours | Next business day |
+
+---
+
+## Incident Detection
+
+### Automated Alerts (from `scripts/monitor.sh`)
+
+| Alert | Severity | Meaning |
+|-------|----------|---------|
+| `CRITICAL: Leaf count DECREASED` | P0 | Merkle tree state corruption — possible reorg or exploit |
+| `CRITICAL: Merkle root is zero but leaf count > 0` | P0 | Tree integrity failure |
+| `CRITICAL: RPC node unreachable` | P1 | Infrastructure outage |
+| `CRITICAL: Epoch DECREASED` | P0 | Possible chain rollback or state tampering |
+| `WARNING: Epoch stalled` | P2 | Epoch manager not advancing — check operator |
+| `WARNING: Kakarot adapter PAUSED` | P2 | EVM bridge halted (may be intentional) |
+| `ABNORMAL GROWTH: >100 deposits` | P1 | Possible spam attack or exploit loop |
+
+### Manual Detection
+
+- **User reports**: Unable to withdraw, stuck transactions
+- **Block explorer**: Unexpected contract state changes
+- **Auditor notification**: Vulnerability disclosure
+
+---
+
+## Response Procedures
+
+### Step 0: Triage (All Incidents)
+
+1. **Acknowledge** the alert in the communication channel
+2. **Assess severity** using the table above
+3. **Open an incident channel** (e.g., `#incident-YYYY-MM-DD` in Slack)
+4. **Assign incident commander** (IC) — the first responder owns coordination
+
+### Step 1: Contain (P0/P1)
+
+Execute emergency pause if funds are at risk:
+
+```bash
+# Pause the Kakarot adapter (blocks EVM operations)
+sncast invoke \
+  --url $STARKNET_RPC_URL \
+  --account $ADMIN_ACCOUNT \
+  --contract-address $KAKAROT_ADAPTER_ADDRESS \
+  --function pause
+
+# Pause the bridge router (blocks cross-chain locks)
+sncast invoke \
+  --url $STARKNET_RPC_URL \
+  --account $ADMIN_ACCOUNT \
+  --contract-address $BRIDGE_ROUTER_ADDRESS \
+  --function pause_bridge
+```
+
+For the privacy pool (if the pool has an emergency pause):
+```bash
+sncast invoke \
+  --url $STARKNET_RPC_URL \
+  --account $ADMIN_ACCOUNT \
+  --contract-address $POOL_ADDRESS \
+  --function emergency_pause
+```
+
+### Step 2: Investigate
+
+1. **Collect evidence**:
+   ```bash
+   # Export recent events
+   starkli events --from-block $SUSPECT_BLOCK \
+     --contract $POOL_ADDRESS \
+     --rpc $STARKNET_RPC_URL > events.json
+
+   # Check nullifier state
+   starkli call $POOL_ADDRESS is_nullifier_spent $NULLIFIER_HASH \
+     --rpc $STARKNET_RPC_URL
+
+   # Check Merkle root history
+   starkli call $POOL_ADDRESS is_known_root $SUSPECT_ROOT \
+     --rpc $STARKNET_RPC_URL
+   ```
+
+2. **Identify the root cause**:
+   - Check transaction traces for unexpected state changes
+   - Compare on-chain state with expected invariants (see `docs/formal-invariants.md`)
+   - Review recent deployments or upgrades
+
+3. **Document timeline** in the incident channel
+
+### Step 3: Remediate
+
+- **If exploit**: Deploy patch, upgrade proxy (see J3), unpause
+- **If infrastructure**: Restore RPC, check block production, verify state
+- **If false alarm**: Retune monitoring thresholds, update runbook
+
+### Step 4: Recover
+
+1. Verify all invariants hold (run `scripts/monitor.sh --once`)
+2. Unpause contracts in reverse order (pool → bridge → Kakarot)
+3. Verify a test transaction works end-to-end
+4. Announce recovery to users
+
+---
+
+## Scenario Playbooks
+
+### Scenario A: Double-Spend Attempt Detected
+
+**Trigger**: Nullifier already spent error in logs, or nullifier count anomaly.
+
+1. **Pause** pool immediately (Step 1)
+2. Query the nullifier registry:
+   ```bash
+   starkli call $POOL_ADDRESS is_nullifier_spent $NULLIFIER \
+     --rpc $STARKNET_RPC_URL
+   ```
+3. If the nullifier IS spent and a second transaction succeeded → **P0 exploit**
+4. If the transaction reverted → monitoring false positive, no action needed
+5. Cross-reference with `docs/formal-invariants.md` invariants N1–N4
+
+### Scenario B: Merkle Tree Corruption
+
+**Trigger**: Root is zero with non-zero leaf count, or leaf count decreased.
+
+1. **Pause** all contracts (Step 1)
+2. Reconstruct expected tree state from events:
+   ```bash
+   # Scan all deposit events from genesis
+   starkli events --from-block 0 \
+     --contract $POOL_ADDRESS \
+     --keys 0x9149d2123147c5f43d258257fef0b7b969db78269369ebcf5c3f201e16f2b \
+     --rpc $STARKNET_RPC_URL > deposits.json
+   ```
+3. Compare on-chain root with expected root computed from deposit events
+4. If mismatch → check for unauthorized `insert` calls or proxy upgrade attacks
+
+### Scenario C: Bridge Epoch Desync
+
+**Trigger**: Epoch root mismatch between chains, receive_from_appchain failing.
+
+1. Compare epoch roots on both chains:
+   ```bash
+   # Source chain
+   starkli call $EPOCH_MGR_SRC get_epoch_root $EPOCH_NUM --rpc $RPC_SRC
+   # Destination chain
+   starkli call $MADARA_ADAPTER_DST get_peer_epoch_root $SRC_CHAIN_ID $EPOCH_NUM --rpc $RPC_DST
+   ```
+2. If roots differ → re-sync the correct root from the source chain
+3. Check that the epoch manager operator is running and advancing epochs
+
+### Scenario D: Kakarot Adapter Exploit
+
+**Trigger**: Unexpected EVM operations, gas price factor manipulation.
+
+1. **Pause** Kakarot adapter immediately
+2. Check gas price factor:
+   ```bash
+   starkli call $KAKAROT_ADDRESS get_gas_price_factor --rpc $STARKNET_RPC_URL
+   ```
+3. If factor was changed by unauthorized party → ownership compromise
+4. Review `GasPriceFactorUpdated` events for unauthorized changes
+5. If ownership is compromised → rotate keys, redeploy adapter
+
+### Scenario E: RPC Node Outage
+
+**Trigger**: Monitor reports RPC unreachable.
+
+1. Switch to backup RPC:
+   ```bash
+   export STARKNET_RPC_URL="https://backup-rpc.example.com/rpc/v0_7"
+   ```
+2. Verify pool state is accessible from backup
+3. Notify users if frontend is affected
+4. Coordinate with RPC provider for resolution
+
+---
+
+## Communication Templates
+
+### User-Facing (Status Page)
+
+**Investigating**:
+> We are investigating reports of [brief description]. The protocol is [operational/paused for safety]. No user funds are at risk. Updates will follow.
+
+**Identified**:
+> The issue has been identified as [root cause]. We are deploying a fix. The protocol is temporarily paused as a precaution.
+
+**Resolved**:
+> The incident has been resolved. [Brief description of fix]. All protocol functions have been restored. A full post-mortem will be published within 48 hours.
+
+### Internal (Team Channel)
+
+```
+🚨 INCIDENT — [P0/P1/P2/P3]
+Time: [UTC timestamp]
+IC: [name]
+Trigger: [alert name / user report]
+Status: [INVESTIGATING / MITIGATING / RESOLVED]
+Contracts paused: [yes/no — which ones]
+Next action: [what's happening now]
+```
+
+---
+
+## Post-Incident Checklist
+
+- [ ] Timeline documented with UTC timestamps
+- [ ] Root cause identified and documented
+- [ ] All contracts unpaused and verified operational
+- [ ] Test transaction confirmed end-to-end
+- [ ] Monitoring thresholds adjusted if needed
+- [ ] `docs/formal-invariants.md` updated if new invariant discovered
+- [ ] `docs/security-checklist.md` updated with lessons learned
+- [ ] Post-mortem written and shared (within 48 hours)
+- [ ] User communication sent (status page updated)
+- [ ] Issue filed for any follow-up code changes
+- [ ] Runbook updated with new scenario if applicable
