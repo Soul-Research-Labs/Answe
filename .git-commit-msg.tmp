@@ -1,15 +1,7 @@
-feat(D1): add KakarotAdapter EVM-to-Cairo bridge contract
+feat(D2): add EVM fee translation for KakarotAdapter
 
-Implements the Kakarot zkEVM adapter that translates EVM-style calls
-from Solidity interfaces (IStarkPrivacyPool) into native Cairo
-PrivacyPool contract calls.
-
-Features:
-- evm_deposit, evm_transfer, evm_withdraw routing to PrivacyPool
-- View function proxying (get_root, get_leaf_count, is_nullifier_spent, etc.)
-- Gas price factor for EVM fee translation (admin-configurable)
-- Pause/unpause for emergency stops
-- Event emission for all routed operations
-- Owner-only admin functions
-
-Files: crates/bridge/src/kakarot_adapter.cairo (new), crates/bridge/src/lib.cairo
+- Add estimate_evm_fee() to KakarotAdapter Cairo contract
+  Returns (protocol_fee, gas_premium, total_fee) given amount and EVM gas used
+- Add estimateEvmFee() to StarkPrivacyClient SDK
+  Pure computation: protocol fee (0.1% BPS) + gas premium (gas * factor / 10000)
+- Gas price factor is admin-configurable via set_gas_price_factor()

@@ -759,6 +759,28 @@ export class StarkPrivacyClient {
   }
 
   /**
+   * Estimate fees for an EVM-originated operation via the KakarotAdapter.
+   *
+   * @param value - The transaction value.
+   * @param evmGasUsed - Estimated EVM gas units consumed.
+   * @param gasPriceFactor - Gas price factor from the adapter (basis points, 10000 = 1x).
+   * @returns Protocol fee, gas premium, and total fee.
+   */
+  estimateEvmFee(
+    value: bigint,
+    evmGasUsed: bigint,
+    gasPriceFactor = 10000n,
+  ): { protocolFee: bigint; gasPremium: bigint; totalFee: bigint } {
+    const protocolFee = (value * StarkPrivacyClient.FEE_BPS) / StarkPrivacyClient.FEE_DENOMINATOR;
+    const gasPremium = (evmGasUsed * gasPriceFactor) / 10000n;
+    return {
+      protocolFee: protocolFee < StarkPrivacyClient.MIN_FEE_FLOOR ? StarkPrivacyClient.MIN_FEE_FLOOR : protocolFee,
+      gasPremium,
+      totalFee: (protocolFee < StarkPrivacyClient.MIN_FEE_FLOOR ? StarkPrivacyClient.MIN_FEE_FLOOR : protocolFee) + gasPremium,
+    };
+  }
+
+  /**
    * Sync the local Merkle tree with on-chain commitments.
    * Call this before generating proofs to ensure Merkle paths are valid.
    *

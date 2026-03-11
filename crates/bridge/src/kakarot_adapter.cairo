@@ -63,6 +63,14 @@ pub trait IKakarotAdapter<TContractState> {
     /// Get the pool balance for a specific asset.
     fn get_pool_balance(self: @TContractState, asset_id: felt252) -> u256;
 
+    /// Estimate the total fee for an EVM operation.
+    /// Returns (protocol_fee, gas_premium, total_fee).
+    /// protocol_fee = amount * 10 / 10000 (0.1% BPS)
+    /// gas_premium = evm_gas_used * gas_price_factor / 10000
+    fn estimate_evm_fee(
+        self: @TContractState, amount: u256, evm_gas_used: u256,
+    ) -> (u256, u256, u256);
+
     // ─── Admin ───────────────────────────────────────────────────
 
     /// Get the underlying pool address.
@@ -238,6 +246,16 @@ pub mod KakarotAdapter {
         fn get_pool_balance(self: @ContractState, asset_id: felt252) -> u256 {
             let pool = IPrivacyPoolDispatcher { contract_address: self.pool.read() };
             pool.get_pool_balance(asset_id)
+        }
+
+        fn estimate_evm_fee(
+            self: @ContractState, amount: u256, evm_gas_used: u256,
+        ) -> (u256, u256, u256) {
+            let protocol_fee = (amount * 10) / 10000;
+            let factor = self.gas_price_factor.read();
+            let gas_premium = (evm_gas_used * factor) / 10000;
+            let total = protocol_fee + gas_premium;
+            (protocol_fee, gas_premium, total)
         }
 
         // ─── Admin ───────────────────────────────────────────────
