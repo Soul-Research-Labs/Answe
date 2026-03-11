@@ -15,20 +15,20 @@ StarkPrivacy port the core concepts from **ZAseon** (cross-chain ZK privacy midd
                     └────────┬───────────┘
                              │
 ┌────────────────────────────▼────────────────────────────────┐
-│              Cairo Smart Contracts (on-chain)                │
+│              Cairo Smart Contracts (on-chain)               │
 │                                                             │
-│  ┌─────────────┐  ┌──────────────┐  ┌───────────────────┐  │
-│  │ PrivacyPool │  │ NullifierReg │  │ EpochManager      │  │
-│  │ deposit()   │  │ domain-sep   │  │ epoch roots       │  │
-│  │ transfer()  │  │ V2 nullifier │  │ finalization      │  │
-│  │ withdraw()  │  │              │  │                   │  │
-│  └──────┬──────┘  └──────┬───────┘  └───────┬───────────┘  │
+│  ┌─────────────┐  ┌──────────────┐  ┌───────────────────┐   │
+│  │ PrivacyPool │  │ NullifierReg │  │ EpochManager      │   │
+│  │ deposit()   │  │ domain-sep   │  │ epoch roots       │   │
+│  │ transfer()  │  │ V2 nullifier │  │ finalization      │   │
+│  │ withdraw()  │  │              │  │                   │   │
+│  └──────┬──────┘  └──────┬───────┘  └───────┬───────────┘   │
 │         │                │                   │              │
-│  ┌──────▼──────┐  ┌──────▼───────┐  ┌───────▼───────────┐  │
-│  │ MerkleTree  │  │ Compliance   │  │ StealthRegistry   │  │
-│  │ Poseidon    │  │ Oracle hooks │  │ ECDH one-time     │  │
-│  │ depth=32    │  │ policy-bound │  │ addresses         │  │
-│  └─────────────┘  └──────────────┘  └───────────────────┘  │
+│  ┌──────▼──────┐  ┌──────▼───────┐  ┌───────▼───────────┐   │
+│  │ MerkleTree  │  │ Compliance   │  │ StealthRegistry   │   │
+│  │ Poseidon    │  │ Oracle hooks │  │ ECDH one-time     │   │
+│  │ depth=32    │  │ policy-bound │  │ addresses         │   │
+│  └─────────────┘  └──────────────┘  └───────────────────┘   │
 │                                                             │
 │  ┌─────────────────────────────────────────────────────┐    │
 │  │ BridgeRouter / L1BridgeAdapter                      │    │

@@ -63,6 +63,7 @@ build-external-contracts = [
     "starkprivacy_compliance::SanctionsOracle",
     "starkprivacy_security::Timelock",
     "starkprivacy_security::MultiSig",
+    "starkprivacy_security::UpgradeableProxy",
 ]
 
 [scripts]

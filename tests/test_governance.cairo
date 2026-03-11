@@ -6,6 +6,8 @@ use snforge_std::{
 use starknet::ContractAddress;
 use starkprivacy_security::timelock::{ITimelockDispatcher, ITimelockDispatcherTrait};
 use starkprivacy_security::multisig::{IMultiSigDispatcher, IMultiSigDispatcherTrait};
+use starkprivacy_security::upgradeable::{IUpgradeableProxyDispatcher, IUpgradeableProxyDispatcherTrait};
+use starknet::ClassHash;
 
 fn owner() -> ContractAddress {
     starknet::contract_address_const::<0x1>()
@@ -440,4 +442,117 @@ fn test_full_governance_flow() {
 
     assert!(!tl.is_pending(op_id), "op should no longer be pending");
     assert!(tl.get_min_delay() == 120, "delay should have been updated to 120");
+}
+
+// ─── UpgradeableProxy ────────────────────────────────────────────
+
+fn deploy_proxy(governor: ContractAddress, emergency: ContractAddress) -> IUpgradeableProxyDispatcher {
+    let contract = declare("UpgradeableProxy").unwrap().contract_class();
+    // Use the proxy's own class hash as initial_class_hash for testing
+    let class_hash: ClassHash = (*contract.class_hash).into();
+    let calldata: Array<felt252> = array![class_hash.into(), governor.into(), emergency.into()];
+    let (addr, _) = contract.deploy(@calldata).unwrap();
+    IUpgradeableProxyDispatcher { contract_address: addr }
+}
+
+#[test]
+fn test_proxy_initial_state() {
+    let proxy = deploy_proxy(owner(), signer_a());
+    start_cheat_caller_address(proxy.contract_address, owner());
+
+    assert!(proxy.get_governor() == owner(), "governor should be owner");
+    assert!(proxy.get_emergency_governor() == signer_a(), "emergency should be signer_a");
+    assert!(proxy.get_upgrade_count() == 0, "no upgrades yet");
+}
+
+#[test]
+fn test_proxy_governor_can_set_governor() {
+    let proxy = deploy_proxy(owner(), signer_a());
+    start_cheat_caller_address(proxy.contract_address, owner());
+
+    proxy.set_governor(signer_b());
+    assert!(proxy.get_governor() == signer_b(), "governor updated");
+}
+
+#[test]
+fn test_proxy_governor_can_set_emergency() {
+    let proxy = deploy_proxy(owner(), signer_a());
+    start_cheat_caller_address(proxy.contract_address, owner());
+
+    proxy.set_emergency_governor(signer_c());
+    assert!(proxy.get_emergency_governor() == signer_c(), "emergency updated");
+}
+
+#[test]
+#[should_panic(expected: "caller is not governor")]
+fn test_proxy_non_governor_cannot_set_governor() {
+    let proxy = deploy_proxy(owner(), signer_a());
+    start_cheat_caller_address(proxy.contract_address, signer_b());
+
+    proxy.set_governor(signer_c());
+}
+
+#[test]
+#[should_panic(expected: "caller is not authorized to upgrade")]
+fn test_proxy_unauthorized_upgrade_rejected() {
+    let proxy = deploy_proxy(owner(), signer_a());
+    start_cheat_caller_address(proxy.contract_address, signer_b());
+
+    // Use some class hash — doesn't matter, should panic before syscall
+    let fake_hash: ClassHash = 0xDEAD.try_into().unwrap();
+    proxy.upgrade(fake_hash);
+}
+
+#[test]
+#[should_panic(expected: "class hash cannot be zero")]
+fn test_proxy_zero_class_hash_rejected() {
+    let proxy = deploy_proxy(owner(), signer_a());
+    start_cheat_caller_address(proxy.contract_address, owner());
+
+    let zero_hash: ClassHash = 0.try_into().unwrap();
+    proxy.upgrade(zero_hash);
+}
+
+#[test]
+#[should_panic(expected: "already at this version")]
+fn test_proxy_same_class_hash_rejected() {
+    let proxy = deploy_proxy(owner(), signer_a());
+    start_cheat_caller_address(proxy.contract_address, owner());
+
+    let current = proxy.get_implementation();
+    proxy.upgrade(current);
+}
+
+#[test]
+fn test_proxy_emergency_governor_can_upgrade() {
+    let proxy = deploy_proxy(owner(), signer_a());
+
+    // Verify upgrade count is 0 before upgrade
+    assert!(proxy.get_upgrade_count() == 0, "no upgrades yet");
+
+    // Emergency governor should also be authorized
+    start_cheat_caller_address(proxy.contract_address, signer_a());
+
+    // Use a different class hash — declare a second UpgradeableProxy to get a distinct hash
+    // Actually, we use MultiSig class hash. After replace_class, the contract changes ABI.
+    // So we just verify the call doesn't revert (i.e., authorization passes).
+    // We'll upgrade to a copy of the same proxy class by re-declaring.
+    let ms_class = declare("MultiSig").unwrap().contract_class();
+    let new_hash: ClassHash = (*ms_class.class_hash).into();
+
+    // This will succeed (auth check passes, replace_class runs).
+    // After this call, the contract is now a MultiSig — we can't call proxy methods.
+    // We just verify it doesn't panic, proving emergency governor is authorized.
+    proxy.upgrade(new_hash);
+    // If we reach here, the emergency governor was authorized ✓
+}
+
+#[test]
+#[should_panic(expected: "governor cannot be zero")]
+fn test_proxy_governor_cannot_be_zero() {
+    let proxy = deploy_proxy(owner(), signer_a());
+    start_cheat_caller_address(proxy.contract_address, owner());
+
+    let zero: ContractAddress = 0.try_into().unwrap();
+    proxy.set_governor(zero);
 }

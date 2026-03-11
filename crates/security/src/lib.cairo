@@ -7,8 +7,10 @@ pub mod rate_limiter;
 pub mod reentrancy_guard;
 pub mod timelock;
 pub mod multisig;
+pub mod upgradeable;
 
 pub use rate_limiter::RateLimiter;
 pub use reentrancy_guard::ReentrancyGuard;
 pub use timelock::Timelock;
 pub use multisig::MultiSig;
+pub use upgradeable::UpgradeableProxy;
