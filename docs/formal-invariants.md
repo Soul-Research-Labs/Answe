@@ -262,37 +262,37 @@ $$\text{start}() \text{ while } \text{locked} = \text{true} \implies \text{rever
 
 | Invariant | Fuzz     | Unit | Formal | Status                   |
 | --------- | -------- | ---- | ------ | ------------------------ |
-| INV-C1    | ✅ (256) | ✅   | ⬜     | Tested                   |
-| INV-C2    | —        | —    | ⬜     | Assumed (Poseidon)       |
-| INV-C3    | ✅ (256) | ✅   | ⬜     | Tested                   |
-| INV-N1    | ✅ (256) | ✅   | ⬜     | Tested                   |
-| INV-N2    | ✅ (256) | ✅   | ⬜     | Tested                   |
-| INV-N3    | ✅ (256) | ✅   | ⬜     | Tested                   |
-| INV-N4    | ✅ (256) | ✅   | ⬜     | Tested                   |
-| INV-M1    | —        | ✅   | ⬜     | Tested                   |
-| INV-M2    | —        | ✅   | ⬜     | Tested                   |
-| INV-M3    | —        | ✅   | ⬜     | By design                |
+| INV-C1    | ✅ (256) | ✅   | 📝     | Tested + spec'd          |
+| INV-C2    | —        | —    | 📝     | Spec'd (Poseidon)        |
+| INV-C3    | ✅ (256) | ✅   | 📝     | Tested + spec'd          |
+| INV-N1    | ✅ (256) | ✅   | 📝     | Tested + proof sketch    |
+| INV-N2    | ✅ (256) | ✅   | 📝     | Tested + spec'd          |
+| INV-N3    | ✅ (256) | ✅   | 📝     | Tested + spec'd          |
+| INV-N4    | ✅ (256) | ✅   | 📝     | Tested + spec'd          |
+| INV-M1    | —        | ✅   | 📝     | Tested + spec'd          |
+| INV-M2    | —        | ✅   | 📝     | Tested + spec'd          |
+| INV-M3    | —        | ✅   | 📝     | By design + spec'd       |
 | INV-M4    | —        | ✅   | ⬜     | Tested                   |
-| INV-V1    | —        | ✅   | ⬜     | Tested                   |
-| INV-V2    | —        | ✅   | ⬜     | Tested                   |
-| INV-V3    | —        | —    | ⬜     | Requires inductive proof |
-| INV-A1    | —        | ✅   | ⬜     | Tested                   |
-| INV-A2    | —        | ✅   | ⬜     | Tested                   |
-| INV-A3    | —        | ✅   | ⬜     | Tested                   |
-| INV-A4    | —        | ✅   | ⬜     | Tested                   |
-| INV-A5    | —        | ✅   | ⬜     | Tested                   |
-| INV-A6    | —        | ✅   | ⬜     | Tested                   |
-| INV-N5    | ✅ (256) | ✅   | ⬜     | Tested                   |
-| INV-X1    | —        | ✅   | ⬜     | Tested                   |
-| INV-X2    | —        | ✅   | ⬜     | Tested                   |
+| INV-V1    | —        | ✅   | 📝     | Tested + proof sketch    |
+| INV-V2    | —        | ✅   | 📝     | Tested + proof sketch    |
+| INV-V3    | —        | —    | 📝     | Inductive proof sketch   |
+| INV-A1    | —        | ✅   | 📝     | Tested + spec'd          |
+| INV-A2    | —        | ✅   | 📝     | Tested + spec'd          |
+| INV-A3    | —        | ✅   | 📝     | Tested + spec'd          |
+| INV-A4    | —        | ✅   | 📝     | Tested + spec'd          |
+| INV-A5    | —        | ✅   | 📝     | Tested + spec'd          |
+| INV-A6    | —        | ✅   | 📝     | Tested + spec'd          |
+| INV-N5    | ✅ (256) | ✅   | 📝     | Tested + spec'd          |
+| INV-X1    | —        | ✅   | 📝     | Tested + proof sketch    |
+| INV-X2    | —        | ✅   | 📝     | Tested + proof sketch    |
 | INV-X3    | —        | ✅   | ⬜     | Tested                   |
 | INV-R1    | —        | ✅   | ⬜     | Tested                   |
 | INV-R2    | —        | ✅   | ⬜     | Tested                   |
 | INV-S1    | —        | ✅   | ⬜     | Tested                   |
 | INV-S2    | —        | —    | ⬜     | Assumed (ECDH)           |
-| INV-RE1   | —        | ✅   | ⬜     | Tested                   |
+| INV-RE1   | —        | ✅   | 📝     | Tested + spec'd          |
 
-**Legend**: ✅ = Verified, ⬜ = Pending formal proof, — = Not applicable
+**Legend**: ✅ = Verified, 📝 = Formal spec + proof sketch (see `formal-specs.md`), ⬜ = Pending
 
 ---
 
