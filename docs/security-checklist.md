@@ -42,6 +42,7 @@
 - [x] Owner-only functions use `assert(caller == owner)` pattern
 - [x] EpochManager / BridgeRouter restrict `advance_epoch` / `publish_epoch_root` to owner
 - [x] MadaraAdapter `register_peer` / `sync_epoch_root` restricted to owner
+- [x] KakarotAdapter `pause` / `unpause` / `set_gas_price_factor` restricted to owner
 - [ ] Consider role-based access (separate operator vs. admin roles)
 
 ### 4.2 Reentrancy
@@ -86,6 +87,18 @@
 - [x] Commitment replay prevention (`processed_commitments` map)
 - [ ] Cross-chain message ordering guarantees reviewed
 - [ ] Relayer trust assumptions documented and tested
+
+### 5.3 Kakarot EVM Bridge
+
+- [x] KakarotAdapter routes EVM calls to underlying PrivacyPool (pure proxy)
+- [x] Emergency pause mechanism blocks all mutating EVM operations
+- [x] View functions accessible even when paused
+- [x] Gas price factor bounded (must be > 0, admin-configurable)
+- [x] Fee estimation is stateless and deterministic (no state dependency)
+- [x] Double-pause and double-unpause rejected
+- [x] 15 cross-chain integration tests cover adapter + pool interaction
+- [ ] Kakarot address translation security review
+- [ ] EVM gas griefing analysis (malicious gas parameter manipulation)
 
 ## 6. Privacy Properties
 
@@ -134,8 +147,11 @@
 - [x] Build reproducibility via pinned scarb + starknet versions
 - [x] Deployment scripts validate deployed bytecode
 - [x] Multi-sig / timelock on contract upgrades (Phase D governance wiring)
-- [ ] Incident response plan
+- [x] Pool health monitoring script (`scripts/monitor.sh`) with automated alerts
+- [x] Incident response runbook with severity levels and playbooks (`docs/incident-response.md`)
+- [x] CD staging workflow for automated deploy-to-sepolia
 - [ ] Bug bounty program
+- [ ] Production key rotation procedure
 
 ## 10. Testing Coverage
 
@@ -147,15 +163,18 @@
 | Privacy pool                               | 11       | ✅             |
 | Stealth (registry, encrypted notes)        | 16       | ✅             |
 | Bridge (router, L1, epoch, Madara)         | 23       | ✅             |
+| KakarotAdapter (EVM bridge)                | 15       | ✅             |
 | Compliance                                 | 10       | ✅             |
 | Security components                        | 5        | ✅             |
 | Governance (timelock, multisig, wiring)    | 25       | ✅             |
 | Fuzz / property-based (×256 each)          | 15       | ✅             |
 | SDK (crypto, keys, notes, prover, relayer) | 154      | ✅             |
-| **Total**                                  | **300+** | **0 failures** |
+| SDK indexer (mock-based)                   | 19       | ✅             |
+| **Total**                                  | **334+** | **0 failures** |
 
 - [x] Property-based / fuzz testing (15 fuzz tests × 256 runs each)
-- [ ] Formal verification of critical invariants
+- [x] Formal verification specifications with proof sketches (`docs/formal-specs.md`)
+- [ ] Mechanized formal proofs (Lean 4 / Coq)
 - [ ] Mainnet dry-run with production parameters
 
 ---
@@ -166,6 +185,7 @@
 
 1. STARK circuit soundness and constraint completeness
 2. Poseidon instantiation correctness
-3. Cross-chain message integrity (L1 ↔ L2 ↔ Madara)
+3. Cross-chain message integrity (L1 ↔ L2 ↔ Madara ↔ Kakarot EVM)
 4. Nullifier scheme binding/hiding proofs
 5. Privacy guarantees under adversarial network model
+6. Kakarot EVM address translation and gas griefing vectors
