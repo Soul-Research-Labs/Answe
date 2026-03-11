@@ -13,8 +13,10 @@ pub mod router;
 pub mod l1_adapter;
 pub mod epoch_manager;
 pub mod madara_adapter;
+pub mod kakarot_adapter;
 
 pub use router::BridgeRouter;
 pub use l1_adapter::L1BridgeAdapter;
 pub use epoch_manager::EpochManager;
 pub use madara_adapter::MadaraAdapter;
+pub use kakarot_adapter::KakarotAdapter;
