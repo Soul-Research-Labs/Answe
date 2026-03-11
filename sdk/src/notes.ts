@@ -374,6 +374,73 @@ export class NoteManager {
   }
 }
 
+// ─── File I/O Helpers ─────────────────────────────────────────
+
+/**
+ * Save an encrypted note backup to a file.
+ *
+ * @param manager - The NoteManager to export.
+ * @param filePath - Absolute path to the backup file.
+ * @param password - Encryption password.
+ */
+export async function saveNotesToFile(
+  manager: NoteManager,
+  filePath: string,
+  password: string,
+): Promise<void> {
+  const { writeFile, mkdir } = await import("fs/promises");
+  const { dirname } = await import("path");
+
+  const blob = manager.exportEncrypted(password);
+  await mkdir(dirname(filePath), { recursive: true });
+  await writeFile(filePath, blob, "utf8");
+}
+
+/**
+ * Load an encrypted note backup from a file into a NoteManager.
+ *
+ * @param filePath - Absolute path to the backup file.
+ * @param password - Decryption password.
+ * @param merge - If true, merge into existing notes; if false (default), replace.
+ * @returns A NoteManager populated with the decrypted notes.
+ */
+export async function loadNotesFromFile(
+  filePath: string,
+  password: string,
+  merge = false,
+): Promise<NoteManager> {
+  const { readFile } = await import("fs/promises");
+  const blob = await readFile(filePath, "utf8");
+  const manager = new NoteManager();
+  manager.importEncrypted(blob, password, merge);
+  return manager;
+}
+
+/**
+ * Verify a backup file is valid without modifying the current NoteManager.
+ * Returns the note count if valid, or throws on decryption / parse failure.
+ *
+ * @param filePath - Absolute path to the backup file.
+ * @param password - Decryption password.
+ * @returns Note count and summary statistics from the backup.
+ */
+export async function verifyBackup(
+  filePath: string,
+  password: string,
+): Promise<{
+  noteCount: number;
+  unspent: number;
+  spent: number;
+  pending: number;
+}> {
+  const restored = await loadNotesFromFile(filePath, password);
+  const stats = restored.getStats();
+  return {
+    noteCount: stats.unspent + stats.spent + stats.pending,
+    ...stats,
+  };
+}
+
 /** Serialized note format for encrypted storage. */
 interface SerializedNote {
   id: string;

@@ -31,7 +31,7 @@ describe("StarkPrivacyClient", () => {
       const km = KeyManager.generate();
       const client = StarkPrivacyClient.fromSpendingKey(
         dummyConfig,
-        km.exportKeys().spendingKey,
+        km.exportKeys(true).spendingKey,
       );
       expect(client).toBeInstanceOf(StarkPrivacyClient);
     });
@@ -39,7 +39,7 @@ describe("StarkPrivacyClient", () => {
     it("initial balance is zero", () => {
       const client = StarkPrivacyClient.fromSpendingKey(
         dummyConfig,
-        KeyManager.generate().exportKeys().spendingKey,
+        KeyManager.generate().exportKeys(true).spendingKey,
       );
       expect(client.getBalance()).toBe(0n);
     });
@@ -47,7 +47,7 @@ describe("StarkPrivacyClient", () => {
     it("initial note stats are zero", () => {
       const client = StarkPrivacyClient.fromSpendingKey(
         dummyConfig,
-        KeyManager.generate().exportKeys().spendingKey,
+        KeyManager.generate().exportKeys(true).spendingKey,
       );
       const stats = client.getNoteStats();
       expect(stats).toEqual({ unspent: 0, spent: 0, pending: 0 });
@@ -58,7 +58,7 @@ describe("StarkPrivacyClient", () => {
     it("deposit throws without account", async () => {
       const client = StarkPrivacyClient.fromSpendingKey(
         readOnlyConfig,
-        KeyManager.generate().exportKeys().spendingKey,
+        KeyManager.generate().exportKeys(true).spendingKey,
       );
       await expect(client.deposit(100n)).rejects.toThrow(
         "Account not configured",
@@ -68,7 +68,7 @@ describe("StarkPrivacyClient", () => {
     it("transfer throws without account", async () => {
       const client = StarkPrivacyClient.fromSpendingKey(
         readOnlyConfig,
-        KeyManager.generate().exportKeys().spendingKey,
+        KeyManager.generate().exportKeys(true).spendingKey,
       );
       await expect(client.transfer(1n, 100n)).rejects.toThrow(
         "Account not configured",
@@ -78,7 +78,7 @@ describe("StarkPrivacyClient", () => {
     it("withdraw throws without account", async () => {
       const client = StarkPrivacyClient.fromSpendingKey(
         readOnlyConfig,
-        KeyManager.generate().exportKeys().spendingKey,
+        KeyManager.generate().exportKeys(true).spendingKey,
       );
       await expect(client.withdraw("0x1", 100n)).rejects.toThrow(
         "Account not configured",
@@ -88,7 +88,7 @@ describe("StarkPrivacyClient", () => {
     it("registerStealthMetaAddress throws without account", async () => {
       const client = StarkPrivacyClient.fromSpendingKey(
         readOnlyConfig,
-        KeyManager.generate().exportKeys().spendingKey,
+        KeyManager.generate().exportKeys(true).spendingKey,
       );
       await expect(client.registerStealthMetaAddress(1n, 2n)).rejects.toThrow(
         "Account not configured",
@@ -98,7 +98,7 @@ describe("StarkPrivacyClient", () => {
     it("bridgeToL1 throws without account", async () => {
       const client = StarkPrivacyClient.fromSpendingKey(
         readOnlyConfig,
-        KeyManager.generate().exportKeys().spendingKey,
+        KeyManager.generate().exportKeys(true).spendingKey,
       );
       await expect(client.bridgeToL1(1n, 2n, 100n)).rejects.toThrow(
         "Account not configured",
@@ -114,7 +114,7 @@ describe("StarkPrivacyClient", () => {
       };
       const client = StarkPrivacyClient.fromSpendingKey(
         partialConfig,
-        KeyManager.generate().exportKeys().spendingKey,
+        KeyManager.generate().exportKeys(true).spendingKey,
       );
       // scanStealthNotes requires stealthRegistry
       await expect(client.scanStealthNotes(1n)).rejects.toThrow(
@@ -129,7 +129,7 @@ describe("StarkPrivacyClient", () => {
       };
       const client = StarkPrivacyClient.fromSpendingKey(
         partialConfig,
-        KeyManager.generate().exportKeys().spendingKey,
+        KeyManager.generate().exportKeys(true).spendingKey,
       );
       await expect(client.getCurrentEpoch()).rejects.toThrow(
         "Contract address for 'epochManager' not configured",
@@ -143,7 +143,7 @@ describe("StarkPrivacyClient", () => {
       };
       const client = StarkPrivacyClient.fromSpendingKey(
         partialConfig,
-        KeyManager.generate().exportKeys().spendingKey,
+        KeyManager.generate().exportKeys(true).spendingKey,
       );
       await expect(client.getEpochRoot(1n)).rejects.toThrow(
         "Contract address for 'epochManager' not configured",
@@ -155,7 +155,7 @@ describe("StarkPrivacyClient", () => {
     it("getBalance returns 0n for unknown asset", () => {
       const client = StarkPrivacyClient.fromSpendingKey(
         dummyConfig,
-        KeyManager.generate().exportKeys().spendingKey,
+        KeyManager.generate().exportKeys(true).spendingKey,
       );
       expect(client.getBalance(999n)).toBe(0n);
     });
@@ -165,7 +165,7 @@ describe("StarkPrivacyClient", () => {
     it("client exposes a Merkle tree that can be synced", () => {
       const client = StarkPrivacyClient.fromSpendingKey(
         dummyConfig,
-        KeyManager.generate().exportKeys().spendingKey,
+        KeyManager.generate().exportKeys(true).spendingKey,
       );
       expect(client.tree.leafCount).toBe(0);
       client.syncTree([1n, 2n, 3n]);
@@ -175,7 +175,7 @@ describe("StarkPrivacyClient", () => {
     it("tree root changes after sync", () => {
       const client = StarkPrivacyClient.fromSpendingKey(
         dummyConfig,
-        KeyManager.generate().exportKeys().spendingKey,
+        KeyManager.generate().exportKeys(true).spendingKey,
       );
       const emptyRoot = client.tree.getRoot();
       client.syncTree([1n]);
@@ -187,7 +187,7 @@ describe("StarkPrivacyClient", () => {
     it("local prover health check returns true", async () => {
       const client = StarkPrivacyClient.fromSpendingKey(
         dummyConfig,
-        KeyManager.generate().exportKeys().spendingKey,
+        KeyManager.generate().exportKeys(true).spendingKey,
       );
       const healthy = await client.checkProverHealth();
       expect(healthy).toBe(true);

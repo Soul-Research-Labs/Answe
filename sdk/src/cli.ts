@@ -110,7 +110,7 @@ function buildConfig(flags: Record<string, string>): StarkPrivacyConfig {
 
 async function cmdKeygen(): Promise<void> {
   const km = KeyManager.generate();
-  const keys = km.exportKeys();
+  const keys = km.exportKeys(true);
   console.log("=== New StarkPrivacy Key Pair ===");
   console.log(`Spending Key : 0x${keys.spendingKey.toString(16)}`);
   console.log(`Viewing Key  : 0x${keys.viewingKey.toString(16)}`);
@@ -275,7 +275,7 @@ async function cmdStealthRegister(
     config,
     toBigInt(flags.key),
   );
-  const keys = client.keys.exportKeys();
+  const keys = client.keys.exportKeys(true);
 
   console.log("Registering stealth meta-address...");
   console.log(`  Spending Pub : 0x${keys.spendingKey.toString(16)}`);
@@ -299,7 +299,7 @@ async function cmdStealthScan(flags: Record<string, string>): Promise<void> {
     config,
     toBigInt(flags.key),
   );
-  const keys = client.keys.exportKeys();
+  const keys = client.keys.exportKeys(true);
 
   console.log("Scanning for stealth payments...");
   const found = await client.scanStealthNotes(keys.spendingKey);
@@ -341,13 +341,16 @@ async function cmdBridgeL1(
   );
   console.log(`Bridging to L1: ${amount} to 0x${l1Recipient.toString(16)}...`);
 
-  const txHash = await client.bridgeToL1(
+  const { txHash, messageHash } = await client.bridgeToL1(
     commitment,
     l1Recipient,
     amount,
     assetId,
   );
   console.log(`  TX Hash : ${txHash}`);
+  if (messageHash) {
+    console.log(`  L1 Msg  : ${messageHash}`);
+  }
 }
 
 async function cmdEpoch(flags: Record<string, string>): Promise<void> {

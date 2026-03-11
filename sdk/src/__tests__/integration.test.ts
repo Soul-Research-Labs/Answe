@@ -85,7 +85,7 @@ describeIntegration("E2E: StarkPrivacyClient against devnet", () => {
   });
 
   it("generates valid key pairs", () => {
-    const aliceKeys = alice.exportKeys();
+    const aliceKeys = alice.exportKeys(true);
     expect(aliceKeys.spendingKey).toBeGreaterThan(0n);
     expect(aliceKeys.viewingKey).toBeGreaterThan(0n);
     expect(aliceKeys.ownerHash).toBeGreaterThan(0n);
@@ -96,15 +96,15 @@ describeIntegration("E2E: StarkPrivacyClient against devnet", () => {
   it("creates a client from spending key", () => {
     const client = StarkPrivacyClient.fromSpendingKey(
       config,
-      alice.exportKeys().spendingKey,
+      alice.exportKeys(true).spendingKey,
     );
     expect(client).toBeDefined();
     expect(client.getBalance()).toBe(0n);
   });
 
   it("key pairs are unique per generation", () => {
-    const k1 = KeyManager.generate().exportKeys();
-    const k2 = KeyManager.generate().exportKeys();
+    const k1 = KeyManager.generate().exportKeys(true);
+    const k2 = KeyManager.generate().exportKeys(true);
     expect(k1.spendingKey).not.toBe(k2.spendingKey);
     expect(k1.ownerHash).not.toBe(k2.ownerHash);
   });
@@ -112,7 +112,7 @@ describeIntegration("E2E: StarkPrivacyClient against devnet", () => {
   it("note stats start at zero", () => {
     const client = StarkPrivacyClient.fromSpendingKey(
       config,
-      alice.exportKeys().spendingKey,
+      alice.exportKeys(true).spendingKey,
     );
     const stats = client.getNoteStats();
     expect(stats.unspent).toBe(0);
@@ -128,7 +128,7 @@ describeIntegration("E2E: StarkPrivacyClient against devnet", () => {
     };
     const client = StarkPrivacyClient.fromSpendingKey(
       readOnlyConfig,
-      alice.exportKeys().spendingKey,
+      alice.exportKeys(true).spendingKey,
     );
     await expect(client.deposit(100n)).rejects.toThrow(
       "Account not configured",
@@ -136,21 +136,21 @@ describeIntegration("E2E: StarkPrivacyClient against devnet", () => {
   });
 
   it("alice and bob have distinct owner hashes", () => {
-    const aliceKeys = alice.exportKeys();
-    const bobKeys = bob.exportKeys();
+    const aliceKeys = alice.exportKeys(true);
+    const bobKeys = bob.exportKeys(true);
     expect(aliceKeys.ownerHash).not.toBe(bobKeys.ownerHash);
   });
 
   it("commitment is deterministic for same inputs", () => {
     const blinding = randomFelt252();
     const c1 = computeNoteCommitment({
-      owner: alice.exportKeys().ownerHash,
+      owner: alice.exportKeys(true).ownerHash,
       value: 100n,
       assetId: 0n,
       blinding,
     });
     const c2 = computeNoteCommitment({
-      owner: alice.exportKeys().ownerHash,
+      owner: alice.exportKeys(true).ownerHash,
       value: 100n,
       assetId: 0n,
       blinding,
@@ -161,13 +161,13 @@ describeIntegration("E2E: StarkPrivacyClient against devnet", () => {
   it("different amounts produce different commitments", () => {
     const blinding = randomFelt252();
     const c1 = computeNoteCommitment({
-      owner: alice.exportKeys().ownerHash,
+      owner: alice.exportKeys(true).ownerHash,
       value: 100n,
       assetId: 0n,
       blinding,
     });
     const c2 = computeNoteCommitment({
-      owner: alice.exportKeys().ownerHash,
+      owner: alice.exportKeys(true).ownerHash,
       value: 200n,
       assetId: 0n,
       blinding,
@@ -214,11 +214,11 @@ describeIntegration(
 
         alice = StarkPrivacyClient.fromSpendingKey(
           aliceConfig,
-          KeyManager.generate().exportKeys().spendingKey,
+          KeyManager.generate().exportKeys(true).spendingKey,
         );
         bob = StarkPrivacyClient.fromSpendingKey(
           bobConfig,
-          KeyManager.generate().exportKeys().spendingKey,
+          KeyManager.generate().exportKeys(true).spendingKey,
         );
       });
 
@@ -235,7 +235,7 @@ describeIntegration(
       });
 
       it("Alice transfers to Bob", async () => {
-        const bobKeys = KeyManager.generate().exportKeys();
+        const bobKeys = KeyManager.generate().exportKeys(true);
         const { outputNotes, txHash } = await alice.transfer(
           bobKeys.ownerHash,
           700n,

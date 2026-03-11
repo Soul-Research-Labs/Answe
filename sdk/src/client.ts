@@ -148,6 +148,9 @@ export class StarkPrivacyClient {
       assetId.toString(),
     ]);
 
+    // Wait for on-chain confirmation before returning
+    await this.waitForTransaction(tx.transaction_hash);
+
     return { note, txHash: tx.transaction_hash };
   }
 
@@ -155,7 +158,7 @@ export class StarkPrivacyClient {
    * Execute a private transfer to another recipient.
    *
    * Selects input notes, creates output notes, and submits a transfer
-   * with a mock proof (MVP — real STARK proofs in production).
+   * with a ZK proof verified on-chain.
    *
    * @param recipientOwnerHash - The recipient's owner hash (Poseidon(sk, 0)).
    * @param amount - Amount to send.
@@ -204,7 +207,10 @@ export class StarkPrivacyClient {
       proof.outputCommitments.map((v) => v.toString()),
     ]);
 
-    // Mark inputs as spent
+    // Wait for on-chain confirmation before updating local state
+    await this.waitForTransaction(tx.transaction_hash);
+
+    // Mark inputs as spent only after confirmed on-chain
     this.notes.markSpent([inputs[0].id, inputs[1].id]);
 
     // Track output notes
@@ -279,7 +285,10 @@ export class StarkPrivacyClient {
       assetId.toString(),
     ]);
 
-    // Mark inputs as spent
+    // Wait for on-chain confirmation before updating local state
+    await this.waitForTransaction(tx.transaction_hash);
+
+    // Mark inputs as spent only after confirmed on-chain
     this.notes.markSpent([inputs[0].id, inputs[1].id]);
 
     // Track change note
@@ -478,13 +487,16 @@ export class StarkPrivacyClient {
 
   /**
    * Bridge tokens from L2 to L1.
+   *
+   * Submits the bridge transaction, waits for L2 confirmation, then
+   * returns the tx hash and L2→L1 message hash for tracking.
    */
   async bridgeToL1(
     commitment: Felt252,
     l1Recipient: Felt252,
     amount: bigint,
     assetId: Felt252 = 0n,
-  ): Promise<string> {
+  ): Promise<{ txHash: string; messageHash?: string }> {
     this.requireAccount();
     this.requireContract("l1Bridge");
 
@@ -502,7 +514,62 @@ export class StarkPrivacyClient {
       },
       assetId.toString(),
     ]);
-    return tx.transaction_hash;
+
+    // Wait for L2 confirmation
+    await this.waitForTransaction(tx.transaction_hash);
+
+    // Extract L2→L1 message hash from the receipt for tracking
+    let messageHash: string | undefined;
+    try {
+      const receipt = await this.provider.getTransactionReceipt(
+        tx.transaction_hash,
+      );
+      const messages = (receipt as any).messages_sent;
+      if (Array.isArray(messages) && messages.length > 0) {
+        messageHash = messages[0].message_hash ?? messages[0].msg_hash;
+      }
+    } catch {
+      // Non-critical — message hash is informational
+    }
+
+    return { txHash: tx.transaction_hash, messageHash };
+  }
+
+  /**
+   * Check the status of an L2→L1 bridge message.
+   *
+   * @param txHash - The L2 transaction hash from bridgeToL1.
+   * @returns Message delivery status.
+   */
+  async getBridgeMessageStatus(txHash: string): Promise<{
+    l2Confirmed: boolean;
+    messagesSent: number;
+    messages: Array<{ toAddress: string; payload: string[] }>;
+  }> {
+    try {
+      const receipt = await this.provider.getTransactionReceipt(txHash);
+      const status =
+        (receipt as any).execution_status ?? (receipt as any).status;
+      const l2Confirmed =
+        status === "SUCCEEDED" ||
+        status === "ACCEPTED_ON_L2" ||
+        status === "ACCEPTED_ON_L1";
+
+      const messagesSent: Array<{ toAddress: string; payload: string[] }> = (
+        (receipt as any).messages_sent ?? []
+      ).map((m: any) => ({
+        toAddress: m.to_address ?? m.to ?? "",
+        payload: m.payload ?? [],
+      }));
+
+      return {
+        l2Confirmed,
+        messagesSent: messagesSent.length,
+        messages: messagesSent,
+      };
+    } catch {
+      return { l2Confirmed: false, messagesSent: 0, messages: [] };
+    }
   }
 
   /**
@@ -634,6 +701,61 @@ export class StarkPrivacyClient {
    */
   async checkProverHealth(): Promise<boolean> {
     return this.prover.healthCheck();
+  }
+
+  // ─── Fee Estimation ────────────────────────────────────────────
+
+  /** The on-chain fee basis: 1/1000 (0.1%). */
+  private static readonly FEE_BPS = 10n; // basis points (10 bps = 0.1%)
+  private static readonly FEE_DENOMINATOR = 10_000n;
+  /** Minimum fee floor in smallest token unit. */
+  private static readonly MIN_FEE_FLOOR = 1n;
+
+  /**
+   * Estimate the relayer fee for a given transaction value.
+   *
+   * Applies the protocol's 0.1% fee rate, floored at MIN_FEE_FLOOR,
+   * and optionally adds a gas-price premium derived from the current
+   * block's gas price.
+   *
+   * @param value - The transaction value (amount being transferred/withdrawn).
+   * @param includeGasPremium - If true, fetches the current gas price and adds
+   *   a premium to cover the relayer's gas cost (default: false).
+   * @returns Estimated fee in the smallest token unit.
+   */
+  async estimateFee(
+    value: bigint,
+    includeGasPremium = false,
+  ): Promise<{ fee: bigint; protocolFee: bigint; gasPremium: bigint }> {
+    // Protocol fee: 0.1% of value
+    let protocolFee =
+      (value * StarkPrivacyClient.FEE_BPS) / StarkPrivacyClient.FEE_DENOMINATOR;
+    if (protocolFee < StarkPrivacyClient.MIN_FEE_FLOOR) {
+      protocolFee = StarkPrivacyClient.MIN_FEE_FLOOR;
+    }
+
+    let gasPremium = 0n;
+    if (includeGasPremium) {
+      try {
+        const block = await this.provider.getBlockLatestAccepted();
+        const gasPrice = BigInt(
+          (block as any).l1_gas_price?.price_in_wei ??
+            (block as any).gas_price ??
+            "0",
+        );
+        // Estimate ~50k gas for a typical privacy pool transaction
+        const estimatedGas = 50_000n;
+        gasPremium = gasPrice * estimatedGas;
+      } catch {
+        // If gas price fetch fails, proceed without premium
+      }
+    }
+
+    return {
+      fee: protocolFee + gasPremium,
+      protocolFee,
+      gasPremium,
+    };
   }
 
   /**

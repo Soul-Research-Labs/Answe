@@ -1,0 +1,17 @@
+feat: complete phases A-F, I1-I2 - security fixes, SDK hardening, tests, CI/CD
+
+- E1: Rewrite stealth ECDH with real STARK curve point multiplication
+- E3: Bridge L1 message tracking (bridgeToL1 returns txHash+messageHash)
+- E4: Note backup/recovery helpers (saveNotesToFile, loadNotesFromFile, verifyBackup)
+- B4: Dynamic fee estimation with protocol fee + gas premium
+- F1: CLI integration tests (~210 lines)
+- F2: 16 dark-path adversarial Cairo tests (49 contract tests total)
+- F4: 9 Merkle tree boundary fuzz tests (23 fuzz tests total)
+- F5: Relayer async failure tests (storage adapters, retry, recovery)
+- I2: CD staging workflow (deploy-staging.yml for Sepolia)
+- Fix proof_verifier.cairo: poseidon import path + ENVELOPE_SIZE visibility
+- Previous session: StarkVerifier, input validation, TX confirmation, prover
+  root sync, relayer queue, nonce mgmt, deploy script, snfoundry, key safety,
+  CI security scanning, README roadmap
+
+199 Cairo tests passing, 0 failures

@@ -1,5 +1,5 @@
 use starknet::ContractAddress;
-use snforge_std::{declare, ContractClassTrait, DeclareResultTrait, start_cheat_caller_address, stop_cheat_caller_address, spy_events, EventSpyAssertionsTrait};
+use snforge_std::{declare, ContractClassTrait, DeclareResultTrait, start_cheat_caller_address, stop_cheat_caller_address, spy_events, EventSpyAssertionsTrait, start_cheat_block_timestamp_global};
 
 use starkprivacy_pool::pool::IPrivacyPoolDispatcher;
 use starkprivacy_pool::pool::IPrivacyPoolDispatcherTrait;
@@ -680,4 +680,294 @@ fn test_withdraw_with_fee_recipient_deducts_fee() {
 
     // Pool balance: 3000 - 1000 = 2000
     assert!(pool.get_pool_balance(0) == 2000, "pool balance should be 2000 after withdraw");
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ▌  DARK-PATH / ADVERSARIAL TESTS                                ▌
+// ══════════════════════════════════════════════════════════════════
+
+// ── Stale / Unknown Root Attacks ─────────────────────────────────
+
+#[test]
+#[should_panic(expected: "unknown merkle root")]
+fn test_transfer_with_stale_root_rejected() {
+    let address = deploy_privacy_pool();
+    let pool = IPrivacyPoolDispatcher { contract_address: address };
+
+    // Start at a known timestamp
+    let mut ts: u64 = 1000;
+    start_cheat_block_timestamp_global(ts);
+
+    pool.deposit(0x1111, 100, 0);
+    let stale_root = pool.get_root();
+
+    // Add enough deposits to push stale_root out of the history ring buffer
+    // ROOT_HISTORY_SIZE = 100, rate limit = 10 ops / 60s window
+    // We do batches of 9 with a time jump after each batch
+    let mut i: u32 = 0;
+    while i < 101 {
+        // Advance time past the rate limit window every 9 ops
+        if i % 9 == 0 {
+            ts += 61;
+            start_cheat_block_timestamp_global(ts);
+        };
+        pool.deposit(0xAAAA + i.into(), 1, 0);
+        i += 1;
+    };
+
+    // Advance time once more for the transfer
+    ts += 61;
+    start_cheat_block_timestamp_global(ts);
+
+    let proof: Array<felt252> = array![1];
+    // Using the old root that was evicted from history
+    pool.transfer(proof.span(), stale_root, (0xAF01, 0xAF02), (0xB001, 0xB002));
+}
+
+#[test]
+#[should_panic(expected: "unknown merkle root")]
+fn test_transfer_with_fabricated_root_rejected() {
+    let address = deploy_privacy_pool();
+    let pool = IPrivacyPoolDispatcher { contract_address: address };
+
+    pool.deposit(0x1111, 100, 0);
+    pool.deposit(0x2222, 200, 0);
+
+    let proof: Array<felt252> = array![1];
+    // Completely fabricated root
+    pool.transfer(proof.span(), 0xDEADBEEF, (0xAF01, 0xAF02), (0xB001, 0xB002));
+}
+
+// ── Withdraw > Deposit (Overdraw) ────────────────────────────────
+
+#[test]
+#[should_panic(expected: "insufficient pool balance")]
+fn test_withdraw_more_than_deposited_rejected() {
+    let address = deploy_privacy_pool();
+    let pool = IPrivacyPoolDispatcher { contract_address: address };
+
+    pool.deposit(0x1111, 100, 0);
+    pool.deposit(0x2222, 50, 0);
+    let root = pool.get_root();
+
+    let recipient: ContractAddress = 0x789.try_into().unwrap();
+    let proof: Array<felt252> = array![1];
+    // Try to withdraw 200 when pool only has 150
+    pool.withdraw(proof.span(), root, (0xCAF1, 0xCAF2), 0xC0FFEE, recipient, 200, 0);
+}
+
+// ── Zero Recipient Address ───────────────────────────────────────
+
+#[test]
+#[should_panic(expected: "invalid recipient")]
+fn test_withdraw_to_zero_address_rejected() {
+    let address = deploy_privacy_pool();
+    let pool = IPrivacyPoolDispatcher { contract_address: address };
+
+    pool.deposit(0x1111, 100, 0);
+    pool.deposit(0x2222, 200, 0);
+    let root = pool.get_root();
+
+    let zero_recipient: ContractAddress = 0.try_into().unwrap();
+    let proof: Array<felt252> = array![1];
+    pool.withdraw(proof.span(), root, (0xCAF1, 0xCAF2), 0xC0FFEE, zero_recipient, 100, 0);
+}
+
+// ── Zero Amount Withdrawal ───────────────────────────────────────
+
+#[test]
+#[should_panic(expected: "amount must be positive")]
+fn test_withdraw_zero_amount_rejected() {
+    let address = deploy_privacy_pool();
+    let pool = IPrivacyPoolDispatcher { contract_address: address };
+
+    pool.deposit(0x1111, 100, 0);
+    let root = pool.get_root();
+
+    let recipient: ContractAddress = 0x789.try_into().unwrap();
+    let proof: Array<felt252> = array![1];
+    pool.withdraw(proof.span(), root, (0xCAF1, 0xCAF2), 0xC0FFEE, recipient, 0, 0);
+}
+
+// ── Duplicate Nullifiers in Transfer ─────────────────────────────
+
+#[test]
+#[should_panic(expected: "duplicate nullifiers")]
+fn test_transfer_with_duplicate_nullifiers_rejected() {
+    let address = deploy_privacy_pool();
+    let pool = IPrivacyPoolDispatcher { contract_address: address };
+
+    pool.deposit(0x1111, 100, 0);
+    pool.deposit(0x2222, 200, 0);
+    let root = pool.get_root();
+
+    let proof: Array<felt252> = array![1];
+    // Same nullifier for both inputs
+    pool.transfer(proof.span(), root, (0xAABB, 0xAABB), (0xB001, 0xB002));
+}
+
+// ── Duplicate Nullifiers in Withdraw ─────────────────────────────
+
+#[test]
+#[should_panic(expected: "duplicate nullifiers")]
+fn test_withdraw_with_duplicate_nullifiers_rejected() {
+    let address = deploy_privacy_pool();
+    let pool = IPrivacyPoolDispatcher { contract_address: address };
+
+    pool.deposit(0x1111, 100, 0);
+    pool.deposit(0x2222, 200, 0);
+    let root = pool.get_root();
+
+    let recipient: ContractAddress = 0x789.try_into().unwrap();
+    let proof: Array<felt252> = array![1];
+    pool.withdraw(proof.span(), root, (0xAABB, 0xAABB), 0xC0FFEE, recipient, 100, 0);
+}
+
+// ── Zero Output Commitments ──────────────────────────────────────
+
+#[test]
+#[should_panic(expected: "output commitment 1 cannot be zero")]
+fn test_transfer_zero_output_commitment_1_rejected() {
+    let address = deploy_privacy_pool();
+    let pool = IPrivacyPoolDispatcher { contract_address: address };
+
+    pool.deposit(0x1111, 100, 0);
+    pool.deposit(0x2222, 200, 0);
+    let root = pool.get_root();
+
+    let proof: Array<felt252> = array![1];
+    pool.transfer(proof.span(), root, (0xAF01, 0xAF02), (0, 0xB002));
+}
+
+#[test]
+#[should_panic(expected: "output commitment 2 cannot be zero")]
+fn test_transfer_zero_output_commitment_2_rejected() {
+    let address = deploy_privacy_pool();
+    let pool = IPrivacyPoolDispatcher { contract_address: address };
+
+    pool.deposit(0x1111, 100, 0);
+    pool.deposit(0x2222, 200, 0);
+    let root = pool.get_root();
+
+    let proof: Array<felt252> = array![1];
+    pool.transfer(proof.span(), root, (0xAF01, 0xAF02), (0xB001, 0));
+}
+
+// ── Nullifier Cross-Spend: Transfer then Withdraw Same Nullifier ─
+
+#[test]
+#[should_panic(expected: "nullifier 1 already spent")]
+fn test_cross_operation_double_spend_transfer_then_withdraw() {
+    let address = deploy_privacy_pool();
+    let pool = IPrivacyPoolDispatcher { contract_address: address };
+
+    pool.deposit(0x1111, 1000, 0);
+    pool.deposit(0x2222, 2000, 0);
+    let root = pool.get_root();
+
+    let proof: Array<felt252> = array![1];
+    // Transfer uses nf 0xAF01
+    pool.transfer(proof.span(), root, (0xAF01, 0xAF02), (0xB001, 0xB002));
+
+    let root2 = pool.get_root();
+    let recipient: ContractAddress = 0x789.try_into().unwrap();
+    // Withdraw tries to reuse 0xAF01
+    pool.withdraw(proof.span(), root2, (0xAF01, 0xAF99), 0xC0FFEE, recipient, 500, 0);
+}
+
+// ── Unpause When Not Paused ──────────────────────────────────────
+
+#[test]
+#[should_panic(expected: "not paused")]
+fn test_unpause_when_not_paused_rejected() {
+    let address = deploy_privacy_pool();
+    let pool = IPrivacyPoolDispatcher { contract_address: address };
+    let owner_addr: ContractAddress = OWNER.try_into().unwrap();
+
+    start_cheat_caller_address(address, owner_addr);
+    pool.unpause(); // pool isn't paused → should panic
+    stop_cheat_caller_address(address);
+}
+
+// ── Double Pause ─────────────────────────────────────────────────
+
+#[test]
+#[should_panic(expected: "already paused")]
+fn test_double_pause_rejected() {
+    let address = deploy_privacy_pool();
+    let pool = IPrivacyPoolDispatcher { contract_address: address };
+    let owner_addr: ContractAddress = OWNER.try_into().unwrap();
+
+    start_cheat_caller_address(address, owner_addr);
+    pool.pause();
+    pool.pause(); // already paused → should panic
+    stop_cheat_caller_address(address);
+}
+
+// ── Withdraw While Paused ────────────────────────────────────────
+
+#[test]
+#[should_panic(expected: "pool is paused")]
+fn test_withdraw_while_paused_rejected() {
+    let address = deploy_privacy_pool();
+    let pool = IPrivacyPoolDispatcher { contract_address: address };
+    let owner_addr: ContractAddress = OWNER.try_into().unwrap();
+
+    pool.deposit(0x1111, 100, 0);
+    pool.deposit(0x2222, 200, 0);
+    let root = pool.get_root();
+
+    start_cheat_caller_address(address, owner_addr);
+    pool.pause();
+    stop_cheat_caller_address(address);
+
+    let recipient: ContractAddress = 0x789.try_into().unwrap();
+    let proof: Array<felt252> = array![1];
+    pool.withdraw(proof.span(), root, (0xCAF1, 0xCAF2), 0xC0FFEE, recipient, 100, 0);
+}
+
+// ── Cross-Asset Withdrawal Attack ─────────────────────────────────
+
+#[test]
+#[should_panic(expected: "insufficient pool balance")]
+fn test_withdraw_wrong_asset_rejected() {
+    let address = deploy_privacy_pool();
+    let pool = IPrivacyPoolDispatcher { contract_address: address };
+
+    // Deposit 1000 of asset 0 (ETH)
+    pool.deposit(0x1111, 1000, 0);
+    pool.deposit(0x2222, 1000, 0);
+    let root = pool.get_root();
+
+    let recipient: ContractAddress = 0x789.try_into().unwrap();
+    let proof: Array<felt252> = array![1];
+    // Try to withdraw as asset 1 (never deposited) — pool balance for asset 1 is 0
+    pool.withdraw(proof.span(), root, (0xCAF1, 0xCAF2), 0xC0FFEE, recipient, 100, 1);
+}
+
+// ── Admin functions by non-owner ─────────────────────────────────
+
+#[test]
+#[should_panic(expected: "caller is not owner")]
+fn test_set_proof_verifier_non_owner_rejected() {
+    let address = deploy_privacy_pool();
+    let pool = IPrivacyPoolDispatcher { contract_address: address };
+    let non_owner: ContractAddress = 0x123.try_into().unwrap();
+
+    start_cheat_caller_address(address, non_owner);
+    pool.set_proof_verifier(0xABC.try_into().unwrap());
+    stop_cheat_caller_address(address);
+}
+
+// ── Deposit Max Amount ───────────────────────────────────────────
+
+#[test]
+#[should_panic(expected: "amount exceeds maximum")]
+fn test_deposit_exceeds_max_amount_rejected() {
+    let address = deploy_privacy_pool();
+    let pool = IPrivacyPoolDispatcher { contract_address: address };
+
+    // MAX_DEPOSIT_AMOUNT is defined in primitives; try to deposit more
+    let huge: u256 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF_u256;
+    pool.deposit(0x1234, huge, 0);
 }

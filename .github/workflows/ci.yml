@@ -28,6 +28,14 @@ jobs:
         with:
           starknet-foundry-version: ${{ env.SNFORGE_VERSION }}
 
+      - name: Cache Scarb build
+        uses: actions/cache@v4
+        with:
+          path: starkprivacy/target
+          key: scarb-${{ runner.os }}-${{ env.SCARB_VERSION }}-${{ hashFiles('starkprivacy/**/Scarb.toml', 'starkprivacy/**/*.cairo') }}
+          restore-keys: |
+            scarb-${{ runner.os }}-${{ env.SCARB_VERSION }}-
+
       - name: Build contracts
         run: scarb build
         working-directory: starkprivacy
@@ -59,6 +67,32 @@ jobs:
       - name: Run SDK tests
         run: npx vitest run
         working-directory: starkprivacy/sdk
+
+  sdk-security:
+    name: SDK Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: starkprivacy/sdk/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: starkprivacy/sdk
+
+      - name: Run npm audit
+        run: npm audit --audit-level=high
+        working-directory: starkprivacy/sdk
+        continue-on-error: true
+
+      - name: Check for known vulnerabilities
+        run: npx audit-ci --high
+        working-directory: starkprivacy/sdk
+        continue-on-error: true
 
   cairo-format:
     name: Cairo Format Check

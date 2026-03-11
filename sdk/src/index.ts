@@ -6,12 +6,20 @@ export {
   type SpendingKey,
   type ViewingKey,
 } from "./keys.js";
-export { NoteManager, type PrivacyNote, type NoteStatus } from "./notes.js";
+export {
+  NoteManager,
+  type PrivacyNote,
+  type NoteStatus,
+  saveNotesToFile,
+  loadNotesFromFile,
+  verifyBackup,
+} from "./notes.js";
 export {
   computeNoteCommitment,
   computeNullifier,
   poseidonHash2,
   poseidonHash4,
+  assertValidFelt252,
 } from "./crypto.js";
 export {
   deriveStealthAddress,
@@ -27,9 +35,11 @@ export {
 } from "./prover.js";
 export {
   Relayer,
+  InMemoryJobStorage,
   type RelayerConfig,
   type RelayerJob,
   type JobStatus,
+  type JobStorageAdapter,
 } from "./relayer.js";
 export {
   padEnvelope,

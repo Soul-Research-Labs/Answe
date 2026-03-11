@@ -60,10 +60,33 @@ export class KeyManager {
 
   /**
    * Export the full key pair.
+   *
+   * **SECURITY WARNING**: The spending key grants full control over all
+   * shielded funds. Never share it, log it, or transmit it over insecure
+   * channels. Store it with the same care as a private key.
+   *
+   * @param iUnderstandTheRisk - Must be true to acknowledge the risk of
+   *   exporting the raw spending key. Throws if not provided.
    */
-  exportKeys(): PrivacyKeyPair {
+  exportKeys(iUnderstandTheRisk = false): PrivacyKeyPair {
+    if (!iUnderstandTheRisk) {
+      throw new Error(
+        "exportKeys() exposes your raw spending key. " +
+          "Call exportKeys(true) to acknowledge you understand the risk.",
+      );
+    }
     return {
       spendingKey: this.sk,
+      viewingKey: this.vk,
+      ownerHash: this.ownerHash,
+    };
+  }
+
+  /**
+   * Export only the viewing key and owner hash (safe to share for scanning).
+   */
+  exportViewingKeys(): { viewingKey: ViewingKey; ownerHash: Felt252 } {
+    return {
       viewingKey: this.vk,
       ownerHash: this.ownerHash,
     };

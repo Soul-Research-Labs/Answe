@@ -1,11 +1,17 @@
 import { describe, it, expect } from "vitest";
-import { Relayer, type RelayerConfig } from "../relayer.js";
+import {
+  Relayer,
+  InMemoryJobStorage,
+  type RelayerConfig,
+  type JobStorageAdapter,
+} from "../relayer.js";
 import type { ProofRequest } from "../types.js";
 
 /**
- * Unit tests for the Relayer validation logic.
+ * Unit tests for the Relayer — validation, job storage adapter,
+ * nonce management, retry behaviour, and recovery.
  * Network calls are expected to fail (no devnet), but we can verify
- * job creation, validation, and state management.
+ * all non-network logic.
  */
 
 const CONFIG: RelayerConfig = {
@@ -65,9 +71,9 @@ describe("Relayer validation", () => {
     // submit will create a job but the async process will fail (no network)
     const jobId = await relayer.submit(proof);
     expect(jobId).toMatch(/^relay_/);
-    const job = relayer.getJob(jobId);
+    const job = await relayer.getJob(jobId);
     expect(job).toBeDefined();
-    expect(job!.proof).toBe(proof);
+    expect(job!.proof).toEqual(proof);
   });
 
   it("enforces max pending limit", async () => {
@@ -85,12 +91,225 @@ describe("Relayer validation", () => {
     const relayer = new Relayer(CONFIG);
     await relayer.submit(validProof({ nullifiers: [0x10n, 0x20n] }));
     await relayer.submit(validProof({ nullifiers: [0x30n, 0x40n] }));
-    const all = relayer.getJobs();
+    const all = await relayer.getJobs();
     expect(all.length).toBe(2);
   });
 
-  it("getJob returns undefined for unknown id", () => {
+  it("getJob returns undefined for unknown id", async () => {
     const relayer = new Relayer(CONFIG);
-    expect(relayer.getJob("nonexistent")).toBeUndefined();
+    expect(await relayer.getJob("nonexistent")).toBeUndefined();
+  });
+
+  it("rejects withdraw proofs without recipient", async () => {
+    const relayer = new Relayer(CONFIG);
+    const proof = validProof({ proofType: 2, recipient: undefined });
+    await expect(relayer.submit(proof)).rejects.toThrow("recipient");
+  });
+});
+
+// ─── InMemoryJobStorage ────────────────────────────────────────
+
+describe("InMemoryJobStorage", () => {
+  it("saves and loads a job", async () => {
+    const storage = new InMemoryJobStorage();
+    const job = {
+      id: "relay_0",
+      proof: validProof(),
+      status: "pending" as const,
+      retries: 0,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    await storage.save(job);
+    const loaded = await storage.load("relay_0");
+    expect(loaded).toBeDefined();
+    expect(loaded!.id).toBe("relay_0");
+  });
+
+  it("returns undefined for missing job", async () => {
+    const storage = new InMemoryJobStorage();
+    expect(await storage.load("nonexistent")).toBeUndefined();
+  });
+
+  it("deletes a job", async () => {
+    const storage = new InMemoryJobStorage();
+    const job = {
+      id: "relay_1",
+      proof: validProof(),
+      status: "pending" as const,
+      retries: 0,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    await storage.save(job);
+    await storage.delete("relay_1");
+    expect(await storage.load("relay_1")).toBeUndefined();
+  });
+
+  it("loadAll returns all jobs", async () => {
+    const storage = new InMemoryJobStorage();
+    const now = Date.now();
+    await storage.save({
+      id: "relay_0",
+      proof: validProof(),
+      status: "pending",
+      retries: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await storage.save({
+      id: "relay_1",
+      proof: validProof({ nullifiers: [0x50n, 0x60n] }),
+      status: "confirmed",
+      retries: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const all = await storage.loadAll();
+    expect(all.length).toBe(2);
+  });
+
+  it("loadAll filters by status", async () => {
+    const storage = new InMemoryJobStorage();
+    const now = Date.now();
+    await storage.save({
+      id: "relay_0",
+      proof: validProof(),
+      status: "pending",
+      retries: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await storage.save({
+      id: "relay_1",
+      proof: validProof({ nullifiers: [0x50n, 0x60n] }),
+      status: "confirmed",
+      retries: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const pending = await storage.loadAll("pending");
+    expect(pending.length).toBe(1);
+    expect(pending[0].id).toBe("relay_0");
+  });
+
+  it("nextId increments", async () => {
+    const storage = new InMemoryJobStorage();
+    expect(await storage.nextId()).toBe(0);
+    expect(await storage.nextId()).toBe(1);
+    expect(await storage.nextId()).toBe(2);
+  });
+
+  it("save returns a copy (no aliasing)", async () => {
+    const storage = new InMemoryJobStorage();
+    const job = {
+      id: "relay_0",
+      proof: validProof(),
+      status: "pending" as const,
+      retries: 0,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    await storage.save(job);
+    const loaded = await storage.load("relay_0");
+    loaded!.status = "failed";
+    const original = await storage.load("relay_0");
+    expect(original!.status).toBe("pending");
+  });
+});
+
+// ─── Custom Storage Adapter ─────────────────────────────────────
+
+describe("Relayer with custom storage adapter", () => {
+  it("uses provided storage adapter", async () => {
+    const storage = new InMemoryJobStorage();
+    const relayer = new Relayer({ ...CONFIG, storage });
+    const jobId = await relayer.submit(validProof());
+    const stored = await storage.load(jobId);
+    expect(stored).toBeDefined();
+    expect(stored!.id).toBe(jobId);
+  });
+});
+
+// ─── Retry / Failure Behaviour ──────────────────────────────────
+
+describe("Relayer retry behaviour", () => {
+  it("jobs eventually fail after max retries (no network)", async () => {
+    const storage = new InMemoryJobStorage();
+    const relayer = new Relayer({
+      ...CONFIG,
+      storage,
+      maxRetries: 1,
+      confirmationTimeoutMs: 100,
+    });
+    const jobId = await relayer.submit(validProof());
+
+    // Wait for the async processing queue to settle
+    // (retries with backoff: 1s, but network fails immediately → ~1s total)
+    await new Promise((r) => setTimeout(r, 3000));
+
+    const job = await storage.load(jobId);
+    expect(job).toBeDefined();
+    expect(job!.status).toBe("failed");
+    expect(job!.error).toBeDefined();
+    expect(job!.retries).toBeGreaterThan(0);
+  });
+
+  it("job moves from pending → submitted → failed lifecycle", async () => {
+    const storage = new InMemoryJobStorage();
+    const relayer = new Relayer({
+      ...CONFIG,
+      storage,
+      maxRetries: 0,
+      confirmationTimeoutMs: 100,
+    });
+    const jobId = await relayer.submit(validProof());
+
+    // Let the processing queue run
+    await new Promise((r) => setTimeout(r, 2000));
+
+    const job = await storage.load(jobId);
+    expect(job).toBeDefined();
+    expect(job!.status).toBe("failed");
+  });
+});
+
+// ─── Recovery ───────────────────────────────────────────────────
+
+describe("Relayer recovery", () => {
+  it("recover returns count of jobs to retry", async () => {
+    const storage = new InMemoryJobStorage();
+    const now = Date.now();
+    // Seed storage with pending and submitted jobs (simulating a restart)
+    await storage.save({
+      id: "relay_0",
+      proof: validProof(),
+      status: "pending",
+      retries: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await storage.save({
+      id: "relay_1",
+      proof: validProof({ nullifiers: [0x50n, 0x60n] }),
+      status: "submitted",
+      retries: 1,
+      createdAt: now,
+      updatedAt: now,
+      txHash: "0xABC",
+    });
+    // Confirmed jobs should NOT be retried
+    await storage.save({
+      id: "relay_2",
+      proof: validProof({ nullifiers: [0x70n, 0x80n] }),
+      status: "confirmed",
+      retries: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const relayer = new Relayer({ ...CONFIG, storage, maxRetries: 0 });
+    const count = await relayer.recover();
+    expect(count).toBe(2); // only pending + submitted
   });
 });

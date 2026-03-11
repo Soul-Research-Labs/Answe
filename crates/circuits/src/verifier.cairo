@@ -11,7 +11,7 @@
 /// [4..N]  = type-specific public inputs
 /// [N+1..] = STARK proof data (opaque bytes from prover)
 
-use crate::metadata::ENVELOPE_SIZE;
+pub use crate::metadata::ENVELOPE_SIZE;
 
 /// Proof types
 pub const PROOF_TYPE_TRANSFER: felt252 = 1;

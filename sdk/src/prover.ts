@@ -171,6 +171,15 @@ export function generateTransferProof(input: TransferProofInput): ProofResult {
     } = input;
     const fee = input.fee ?? 0n;
 
+    // Validate tree has been synced with on-chain state
+    if (tree.leafCount === 0) {
+      return {
+        success: false,
+        error:
+          "Merkle tree is empty — call syncTree() with on-chain commitments before generating proofs",
+      };
+    }
+
     // Validate leaf indices exist
     for (let i = 0; i < 2; i++) {
       if (inputNotes[i].leafIndex === undefined) {
@@ -307,6 +316,15 @@ export function generateWithdrawProof(input: WithdrawProofInput): ProofResult {
       tree,
     } = input;
     const fee = input.fee ?? 0n;
+
+    // Validate tree has been synced with on-chain state
+    if (tree.leafCount === 0) {
+      return {
+        success: false,
+        error:
+          "Merkle tree is empty — call syncTree() with on-chain commitments before generating proofs",
+      };
+    }
 
     for (let i = 0; i < 2; i++) {
       if (inputNotes[i].leafIndex === undefined) {

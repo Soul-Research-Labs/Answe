@@ -8,3 +8,4 @@ pub mod proof_verifier;
 
 pub use pool::PrivacyPool;
 pub use proof_verifier::MockVerifier;
+pub use proof_verifier::StarkVerifier;

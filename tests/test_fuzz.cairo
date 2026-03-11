@@ -202,3 +202,137 @@ fn test_fuzz_poseidon4_input_sensitivity(a: felt252, b: felt252, c: felt252, d: 
         );
     }
 }
+
+// ─── Merkle tree fuzz tests ──────────────────────────────────────
+
+use starkprivacy_tree::{
+    MerkleTree, MerkleTreeTrait, TREE_DEPTH, compute_root_from_path, verify_merkle_proof,
+    compute_zero_hashes,
+};
+
+/// Insert determinism: same leaf always produces the same root.
+#[test]
+#[fuzzer(runs: 256)]
+fn test_fuzz_tree_insert_deterministic(leaf: felt252) {
+    let (mut tree1, mut frontier1) = MerkleTreeTrait::new();
+    let (mut tree2, mut frontier2) = MerkleTreeTrait::new();
+
+    let root1 = tree1.insert(ref frontier1, leaf);
+    let root2 = tree2.insert(ref frontier2, leaf);
+    assert!(root1 == root2, "same leaf must produce same root");
+}
+
+/// Every insert must change the root.
+#[test]
+#[fuzzer(runs: 256)]
+fn test_fuzz_tree_insert_changes_root(leaf: felt252) {
+    let (mut tree, mut frontier) = MerkleTreeTrait::new();
+    let old_root = tree.root;
+    tree.insert(ref frontier, leaf);
+    assert!(tree.root != old_root, "insert must change root");
+}
+
+/// Different leaves inserted at the same position produce different roots.
+#[test]
+#[fuzzer(runs: 256)]
+fn test_fuzz_tree_different_leaves_different_roots(leaf1: felt252, leaf2: felt252) {
+    if leaf1 == leaf2 {
+        return;
+    }
+    let (mut tree1, mut frontier1) = MerkleTreeTrait::new();
+    let (mut tree2, mut frontier2) = MerkleTreeTrait::new();
+
+    tree1.insert(ref frontier1, leaf1);
+    tree2.insert(ref frontier2, leaf2);
+    assert!(tree1.root != tree2.root, "different leaves must produce different roots");
+}
+
+/// Order sensitivity: [A, B] root != [B, A] root for A != B.
+#[test]
+#[fuzzer(runs: 256)]
+fn test_fuzz_tree_insert_order_sensitive(a: felt252, b: felt252) {
+    if a == b {
+        return;
+    }
+    let (mut tree1, mut frontier1) = MerkleTreeTrait::new();
+    tree1.insert(ref frontier1, a);
+    tree1.insert(ref frontier1, b);
+
+    let (mut tree2, mut frontier2) = MerkleTreeTrait::new();
+    tree2.insert(ref frontier2, b);
+    tree2.insert(ref frontier2, a);
+
+    assert!(tree1.root != tree2.root, "insert order must affect root");
+}
+
+/// Proof verification for first leaf in a two-leaf tree.
+/// The proof path for index 0 after two inserts: sibling at level 0 is leaf2,
+/// rest are zero hashes.
+#[test]
+#[fuzzer(runs: 64)]
+fn test_fuzz_tree_proof_after_two_inserts(leaf1: felt252, leaf2: felt252) {
+    let zeros = compute_zero_hashes();
+    let (mut tree, mut frontier) = MerkleTreeTrait::new();
+    tree.insert(ref frontier, leaf1);
+    tree.insert(ref frontier, leaf2);
+
+    // Build proof path for index 0: sibling is leaf2 at level 0, zeros above
+    let mut path: Array<felt252> = array![];
+    path.append(leaf2); // level 0 sibling
+    let mut i: u32 = 1;
+    while i < TREE_DEPTH {
+        path.append(*zeros.at(i));
+        i += 1;
+    };
+
+    assert!(
+        verify_merkle_proof(tree.root, leaf1, 0, path.span()),
+        "proof for first leaf must be valid",
+    );
+}
+
+/// Wrong leaf must fail proof verification.
+#[test]
+#[fuzzer(runs: 256)]
+fn test_fuzz_tree_wrong_leaf_fails_proof(leaf: felt252, wrong_leaf: felt252) {
+    if leaf == wrong_leaf {
+        return;
+    }
+    let zeros = compute_zero_hashes();
+    let (mut tree, mut frontier) = MerkleTreeTrait::new();
+    tree.insert(ref frontier, leaf);
+
+    let mut path: Array<felt252> = array![];
+    let mut i: u32 = 0;
+    while i < TREE_DEPTH {
+        path.append(*zeros.at(i));
+        i += 1;
+    };
+
+    assert!(
+        !verify_merkle_proof(tree.root, wrong_leaf, 0, path.span()),
+        "wrong leaf must fail proof",
+    );
+}
+
+/// Sequential inserts monotonically increase next_index.
+#[test]
+#[fuzzer(runs: 64)]
+fn test_fuzz_tree_next_index_monotonic(a: felt252, b: felt252, c: felt252) {
+    let (mut tree, mut frontier) = MerkleTreeTrait::new();
+    assert!(tree.next_index == 0);
+    tree.insert(ref frontier, a);
+    assert!(tree.next_index == 1);
+    tree.insert(ref frontier, b);
+    assert!(tree.next_index == 2);
+    tree.insert(ref frontier, c);
+    assert!(tree.next_index == 3);
+}
+
+/// compute_root_from_path with wrong path length panics.
+#[test]
+#[should_panic(expected: "path length must equal tree depth")]
+fn test_tree_wrong_path_length_panics() {
+    let short_path: Array<felt252> = array![0, 0, 0];
+    compute_root_from_path(0x1234, 0, short_path.span());
+}

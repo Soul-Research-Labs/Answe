@@ -43,12 +43,17 @@ describe("KeyManager", () => {
   });
 
   describe("exportKeys", () => {
-    it("returns all key components", () => {
+    it("returns all key components when risk acknowledged", () => {
       const km = KeyManager.generate();
-      const keys = km.exportKeys();
+      const keys = km.exportKeys(true);
       expect(keys.spendingKey).toBe(km.spendingKey);
       expect(keys.viewingKey).toBe(km.viewingKey);
       expect(keys.ownerHash).toBe(km.ownerHash);
+    });
+
+    it("throws without risk acknowledgement", () => {
+      const km = KeyManager.generate();
+      expect(() => km.exportKeys()).toThrow("spending key");
     });
   });
 });

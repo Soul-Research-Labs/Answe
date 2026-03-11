@@ -271,7 +271,7 @@ import { StarkPrivacyClient, KeyManager } from "@starkprivacy/sdk";
 
 // Generate keys
 const keys = KeyManager.generate();
-console.log("Owner hash:", keys.exportKeys().ownerHash.toString(16));
+console.log("Owner hash:", keys.exportKeys(true).ownerHash.toString(16));
 
 // Create client
 const client = StarkPrivacyClient.fromSpendingKey(
@@ -290,7 +290,7 @@ const client = StarkPrivacyClient.fromSpendingKey(
       privateKey: "0x...",
     },
   },
-  keys.exportKeys().spendingKey,
+  keys.exportKeys(true).spendingKey,
 );
 
 // Deposit
@@ -433,6 +433,8 @@ DEVNET_URL=http://127.0.0.1:5050/rpc POOL_ADDRESS=0x... npm test
 - [x] Phase 12: SDK production hardening — real prover integration, retry logic, nonce management, bias fixes
 - [x] Phase 13: Testing & quality — 15 fuzz tests (256 runs), 20 SDK edge-case tests, 300+ total tests
 - [~] Phase 14: Formal verification & audit (29 invariants spec'd — [docs/formal-invariants.md](docs/formal-invariants.md))
+- [x] Phase 15: Production hardening — StarkVerifier on-chain, felt252 validation, tx confirmation, relayer persistence
+- [ ] Phase 16: Mainnet deployment — real governance signers, production prover, monitoring
 
 ---
 

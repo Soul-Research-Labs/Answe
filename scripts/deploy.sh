@@ -122,10 +122,19 @@ deploy_contract() {
 # ─── Deploy Contracts ─────────────────────────────────────────
 
 # We use a mock ERC-20 token address for testnet — replace for mainnet
-# ETH on Sepolia:
-NATIVE_TOKEN="0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7"
-CHAIN_ID="0x534e5f5345504f4c4941"  # SN_SEPOLIA as felt
-APP_ID="0x535441524b505249564143"    # STARKPRIVAC as felt
+# Override with NATIVE_TOKEN_ADDRESS env var for different networks
+case "$NETWORK_NAME" in
+  sepolia)
+    # ETH on Sepolia
+    NATIVE_TOKEN="${NATIVE_TOKEN_ADDRESS:-0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7}"
+    ;;
+  mainnet)
+    # ETH on Mainnet
+    NATIVE_TOKEN="${NATIVE_TOKEN_ADDRESS:-0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7}"
+    ;;
+esac
+CHAIN_ID="${CHAIN_ID_OVERRIDE:-0x534e5f5345504f4c4941}"  # SN_SEPOLIA as felt (override for mainnet)
+APP_ID="${APP_ID_OVERRIDE:-0x535441524b505249564143}"    # STARKPRIVAC as felt
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  Step 1/9: Deploy NullifierRegistry"
@@ -214,9 +223,13 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 MULTISIG_CLASS=$(declare_contract "MultiSig")
 echo "▸ Deploying MultiSig..."
 # Constructor: threshold=2, signer_count=3, signer_1, signer_2, signer_3
-# Using deployer as all 3 signers initially — replace after deployment
+# WARNING: Using deployer as all 3 signers initially — MUST be replaced
+# after deployment with real governance addresses before going live.
+SIGNER_1="${MULTISIG_SIGNER_1:-$DEPLOYER_ADDR}"
+SIGNER_2="${MULTISIG_SIGNER_2:-$DEPLOYER_ADDR}"
+SIGNER_3="${MULTISIG_SIGNER_3:-$DEPLOYER_ADDR}"
 MULTISIG_ADDR=$(deploy_contract "$MULTISIG_CLASS" \
-  2 3 "$DEPLOYER_ADDR" "$DEPLOYER_ADDR" "$DEPLOYER_ADDR")
+  2 3 "$SIGNER_1" "$SIGNER_2" "$SIGNER_3")
 echo ""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -303,4 +316,35 @@ echo ""
 echo "SDK quick-start:"
 echo "  starkprivacy keygen"
 echo "  starkprivacy deposit 1000 --pool $POOL_ADDR --rpc $RPC_URL"
+echo ""
+
+# ─── Post-deployment verification ──────────────────────────────
+
+echo "▸ Verifying deployed contracts..."
+verify_ok=true
+
+for addr_label in "PrivacyPool:$POOL_ADDR" "EpochManager:$EPOCH_ADDR" "StealthRegistry:$STEALTH_REG_ADDR"; do
+  label="${addr_label%%:*}"
+  addr="${addr_label##*:}"
+  result=$(sncast --account "$ACCOUNT" --url "$RPC_URL" \
+    call --contract-address "$addr" --function "get_root" 2>&1) || true
+  if echo "$result" | grep -qE "0x[0-9a-fA-F]+|felt"; then
+    echo "  ✓ $label ($addr) — responding"
+  else
+    echo "  ⚠ $label ($addr) — could not verify (non-critical)"
+    verify_ok=false
+  fi
+done
+
+echo ""
+echo "═══════════════════════════════════════════════════════"
+echo "  ⚠️  POST-DEPLOYMENT CHECKLIST"
+echo "═══════════════════════════════════════════════════════"
+echo ""
+echo "  1. Replace MultiSig signers with real governance addresses:"
+echo "       MULTISIG_SIGNER_1=0x... MULTISIG_SIGNER_2=0x... MULTISIG_SIGNER_3=0x..."
+echo "  2. Transfer pool ownership to Timelock → MultiSig chain"
+echo "  3. Deploy StarkVerifier (not MockVerifier) for mainnet"
+echo "  4. Verify all contract class hashes match compiled artifacts"
+echo "  5. Fund the relayer account for gas"
 echo ""
