@@ -136,10 +136,10 @@ describe("EventIndexer.scanBlocks (mocked)", () => {
             "0xAABB", // commitment
           ],
           data: [
-            "0x0",    // leafIndex
-            "0x64",   // amount low (100)
-            "0x0",    // amount high
-            "0x0",    // assetId
+            "0x0", // leafIndex
+            "0x64", // amount low (100)
+            "0x0", // amount high
+            "0x0", // assetId
           ],
         },
         {
@@ -198,10 +198,10 @@ describe("EventIndexer.scanBlocks (mocked)", () => {
     await indexer.scanBlocks(1, 200);
 
     const deposits = indexer.getDeposits();
-    expect(deposits[0].commitment).toBe(0xAABBn);
+    expect(deposits[0].commitment).toBe(0xaabbn);
     expect(deposits[0].amount).toBe(100n);
     expect(deposits[0].leafIndex).toBe(0);
-    expect(deposits[1].commitment).toBe(0xCCDDn);
+    expect(deposits[1].commitment).toBe(0xccddn);
     expect(deposits[1].amount).toBe(200n);
     expect(deposits[1].leafIndex).toBe(1);
   });
@@ -256,7 +256,7 @@ describe("EventIndexer edge cases", () => {
     // Simulate a deposit with high portion set
     // amount = low + (high << 128)
     const dep: IndexedDeposit = {
-      commitment: 0xFFn,
+      commitment: 0xffn,
       amount: 1n + (2n << 128n), // 2 * 2^128 + 1
       assetId: 0n,
       leafIndex: 0,

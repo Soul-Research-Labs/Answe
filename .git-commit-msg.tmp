@@ -1,1 +1,1 @@
-J4: API docs -- TypeDoc config, TSDoc comments on all exported types, docs script in package.json
+SDK ABIs + deploy: add KakarotAdapter, UpgradeableProxy, NullifierRegistry, SanctionsOracle, Timelock, MultiSig ABIs to types.ts; add kakarotAdapter/upgradeableProxy to ContractAddresses; update deploy.sh with steps 9-10

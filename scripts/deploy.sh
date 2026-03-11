@@ -137,7 +137,7 @@ CHAIN_ID="${CHAIN_ID_OVERRIDE:-0x534e5f5345504f4c4941}"  # SN_SEPOLIA as felt (o
 APP_ID="${APP_ID_OVERRIDE:-0x535441524b505249564143}"    # STARKPRIVAC as felt
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Step 1/9: Deploy NullifierRegistry"
+echo "  Step 1/11: Deploy NullifierRegistry"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 NULLIFIER_CLASS=$(declare_contract "NullifierRegistry")
 echo "▸ Deploying NullifierRegistry..."
@@ -145,7 +145,7 @@ NULLIFIER_ADDR=$(deploy_contract "$NULLIFIER_CLASS")
 echo ""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Step 2/9: Deploy SanctionsOracle (Compliance)"
+echo "  Step 2/11: Deploy SanctionsOracle (Compliance)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 SANCTIONS_CLASS=$(declare_contract "SanctionsOracle")
 echo "▸ Deploying SanctionsOracle..."
@@ -155,7 +155,7 @@ SANCTIONS_ADDR=$(deploy_contract "$SANCTIONS_CLASS" "$DEPLOYER_ADDR")
 echo ""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Step 3/9: Deploy PrivacyPool"
+echo "  Step 3/11: Deploy PrivacyPool"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 POOL_CLASS=$(declare_contract "PrivacyPool")
 echo "▸ Deploying PrivacyPool..."
@@ -165,7 +165,7 @@ POOL_ADDR=$(deploy_contract "$POOL_CLASS" \
 echo ""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Step 4/9: Deploy StealthRegistry + Factory"
+echo "  Step 4/11: Deploy StealthRegistry + Factory"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 STEALTH_REG_CLASS=$(declare_contract "StealthRegistry")
 echo "▸ Deploying StealthRegistry..."
@@ -178,7 +178,7 @@ STEALTH_FACTORY_ADDR=$(deploy_contract "$STEALTH_FACTORY_CLASS")
 echo ""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Step 5/9: Deploy Bridge Contracts"
+echo "  Step 5/11: Deploy Bridge Contracts"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 BRIDGE_CLASS=$(declare_contract "BridgeRouter")
 echo "▸ Deploying BridgeRouter..."
@@ -199,7 +199,7 @@ L1_BRIDGE_ADDR=$(deploy_contract "$L1_BRIDGE_CLASS" "$DEPLOYER_ADDR")
 echo ""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Step 6/9: Deploy MadaraAdapter"
+echo "  Step 6/11: Deploy MadaraAdapter"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 MADARA_CLASS=$(declare_contract "MadaraAdapter")
 echo "▸ Deploying MadaraAdapter..."
@@ -209,7 +209,7 @@ MADARA_ADDR=$(deploy_contract "$MADARA_CLASS" \
 echo ""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Step 7/9: Deploy Timelock"
+echo "  Step 7/11: Deploy Timelock"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 TIMELOCK_CLASS=$(declare_contract "Timelock")
 echo "▸ Deploying Timelock (min_delay=86400s / 24h)..."
@@ -218,7 +218,7 @@ TIMELOCK_ADDR=$(deploy_contract "$TIMELOCK_CLASS" "$DEPLOYER_ADDR" 86400)
 echo ""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Step 8/9: Deploy MultiSig (2-of-3)"
+echo "  Step 8/11: Deploy MultiSig (2-of-3)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 MULTISIG_CLASS=$(declare_contract "MultiSig")
 echo "▸ Deploying MultiSig..."
@@ -233,7 +233,28 @@ MULTISIG_ADDR=$(deploy_contract "$MULTISIG_CLASS" \
 echo ""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Step 9/9: Write deployment output"
+echo "  Step 9/11: Deploy KakarotAdapter"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+KAKAROT_CLASS=$(declare_contract "KakarotAdapter")
+echo "▸ Deploying KakarotAdapter..."
+# Constructor: pool, owner, gas_price_factor (u256 = low,high)
+# gas_price_factor = 10000 (1x multiplier)
+KAKAROT_ADDR=$(deploy_contract "$KAKAROT_CLASS" \
+  "$POOL_ADDR" "$DEPLOYER_ADDR" 10000 0)
+echo ""
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  Step 10/11: Deploy UpgradeableProxy"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+PROXY_CLASS=$(declare_contract "UpgradeableProxy")
+echo "▸ Deploying UpgradeableProxy..."
+# Constructor: initial_class_hash (pool), governor (timelock), emergency_governor (deployer)
+PROXY_ADDR=$(deploy_contract "$PROXY_CLASS" \
+  "$POOL_CLASS" "$TIMELOCK_ADDR" "$DEPLOYER_ADDR")
+echo ""
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  Step 11/11: Write deployment output"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 cat > "$OUTPUT_FILE" << EOF
@@ -284,6 +305,14 @@ cat > "$OUTPUT_FILE" << EOF
     "MultiSig": {
       "classHash": "$MULTISIG_CLASS",
       "address": "$MULTISIG_ADDR"
+    },
+    "KakarotAdapter": {
+      "classHash": "$KAKAROT_CLASS",
+      "address": "$KAKAROT_ADDR"
+    },
+    "UpgradeableProxy": {
+      "classHash": "$PROXY_CLASS",
+      "address": "$PROXY_ADDR"
     }
   },
   "config": {
@@ -310,8 +339,10 @@ echo "  BridgeRouter      : $BRIDGE_ADDR"
 echo "  EpochManager      : $EPOCH_ADDR"
 echo "  L1BridgeAdapter   : $L1_BRIDGE_ADDR"
 echo "  MadaraAdapter     : $MADARA_ADDR"
+echo "  KakarotAdapter    : $KAKAROT_ADDR"
 echo "  Timelock          : $TIMELOCK_ADDR"
 echo "  MultiSig (2/3)    : $MULTISIG_ADDR"
+echo "  UpgradeableProxy  : $PROXY_ADDR"
 echo ""
 echo "SDK quick-start:"
 echo "  starkprivacy keygen"

@@ -264,14 +264,14 @@ FeeEstimationPure ==
 
 ### Tools
 
-| Property | Approach | Tool | Status |
-|----------|----------|------|--------|
-| Value Conservation | Inductive invariant | TLA⁺ / Lean 4 | Specified |
-| Nullifier Soundness | Set-based reasoning | TLA⁺ | Specified |
-| Merkle Soundness | Hash function model | Lean 4 | Specified |
-| Bridge Safety | State machine model | TLA⁺ | Specified |
-| Access Control | Permission model | Manual audit | Specified |
-| Fee Estimation | Arithmetic verification | Fuzz tests (done) | Verified |
+| Property            | Approach                | Tool              | Status    |
+| ------------------- | ----------------------- | ----------------- | --------- |
+| Value Conservation  | Inductive invariant     | TLA⁺ / Lean 4     | Specified |
+| Nullifier Soundness | Set-based reasoning     | TLA⁺              | Specified |
+| Merkle Soundness    | Hash function model     | Lean 4            | Specified |
+| Bridge Safety       | State machine model     | TLA⁺              | Specified |
+| Access Control      | Permission model        | Manual audit      | Specified |
+| Fee Estimation      | Arithmetic verification | Fuzz tests (done) | Verified  |
 
 ### Verification Roadmap
 
@@ -282,20 +282,20 @@ FeeEstimationPure ==
 
 ### Coverage vs. formal-invariants.md
 
-| Invariant | Specified | Proof Sketch | Mechanized |
-|-----------|-----------|-------------|------------|
-| INV-C1    | ✅        | ✅ (collision-resistance reduction) | ⬜ |
-| INV-C2    | ✅        | ✅ (preimage-resistance reduction) | ⬜ |
-| INV-C3    | ✅        | ✅ (determinism of Poseidon) | ⬜ |
-| INV-N1    | ✅        | ✅ (set-based inductive) | ⬜ |
-| INV-N2–N5 | ✅       | ✅ (domain-sep argument) | ⬜ |
-| INV-M1    | ✅        | ✅ (recursive hash definition) | ⬜ |
-| INV-M2    | ✅        | ✅ (path verification) | ⬜ |
-| INV-M3    | ✅        | ✅ (append-only by design) | ⬜ |
-| INV-V1    | ✅        | ✅ (inductive over operations) | ⬜ |
-| INV-V2    | ✅        | ✅ (inductive over operations) | ⬜ |
-| INV-V3    | ✅        | ✅ (inductive solvency) | ⬜ |
-| INV-X1    | ✅        | ✅ (root match check) | ⬜ |
-| INV-X2    | ✅        | ✅ (set replay prevention) | ⬜ |
-| INV-A1–A6 | ✅       | ✅ (caller-check model) | ⬜ |
-| INV-RE1   | ✅        | ✅ (boolean lock) | ⬜ |
+| Invariant | Specified | Proof Sketch                        | Mechanized |
+| --------- | --------- | ----------------------------------- | ---------- |
+| INV-C1    | ✅        | ✅ (collision-resistance reduction) | ⬜         |
+| INV-C2    | ✅        | ✅ (preimage-resistance reduction)  | ⬜         |
+| INV-C3    | ✅        | ✅ (determinism of Poseidon)        | ⬜         |
+| INV-N1    | ✅        | ✅ (set-based inductive)            | ⬜         |
+| INV-N2–N5 | ✅        | ✅ (domain-sep argument)            | ⬜         |
+| INV-M1    | ✅        | ✅ (recursive hash definition)      | ⬜         |
+| INV-M2    | ✅        | ✅ (path verification)              | ⬜         |
+| INV-M3    | ✅        | ✅ (append-only by design)          | ⬜         |
+| INV-V1    | ✅        | ✅ (inductive over operations)      | ⬜         |
+| INV-V2    | ✅        | ✅ (inductive over operations)      | ⬜         |
+| INV-V3    | ✅        | ✅ (inductive solvency)             | ⬜         |
+| INV-X1    | ✅        | ✅ (root match check)               | ⬜         |
+| INV-X2    | ✅        | ✅ (set replay prevention)          | ⬜         |
+| INV-A1–A6 | ✅        | ✅ (caller-check model)             | ⬜         |
+| INV-RE1   | ✅        | ✅ (boolean lock)                   | ⬜         |

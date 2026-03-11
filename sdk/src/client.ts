@@ -771,12 +771,19 @@ export class StarkPrivacyClient {
     evmGasUsed: bigint,
     gasPriceFactor = 10000n,
   ): { protocolFee: bigint; gasPremium: bigint; totalFee: bigint } {
-    const protocolFee = (value * StarkPrivacyClient.FEE_BPS) / StarkPrivacyClient.FEE_DENOMINATOR;
+    const protocolFee =
+      (value * StarkPrivacyClient.FEE_BPS) / StarkPrivacyClient.FEE_DENOMINATOR;
     const gasPremium = (evmGasUsed * gasPriceFactor) / 10000n;
     return {
-      protocolFee: protocolFee < StarkPrivacyClient.MIN_FEE_FLOOR ? StarkPrivacyClient.MIN_FEE_FLOOR : protocolFee,
+      protocolFee:
+        protocolFee < StarkPrivacyClient.MIN_FEE_FLOOR
+          ? StarkPrivacyClient.MIN_FEE_FLOOR
+          : protocolFee,
       gasPremium,
-      totalFee: (protocolFee < StarkPrivacyClient.MIN_FEE_FLOOR ? StarkPrivacyClient.MIN_FEE_FLOOR : protocolFee) + gasPremium,
+      totalFee:
+        (protocolFee < StarkPrivacyClient.MIN_FEE_FLOOR
+          ? StarkPrivacyClient.MIN_FEE_FLOOR
+          : protocolFee) + gasPremium,
     };
   }
 

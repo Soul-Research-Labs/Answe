@@ -13,12 +13,12 @@
 
 ## Severity Levels
 
-| Level | Name | Description | Response Time | Escalation |
-|-------|------|-------------|---------------|------------|
-| P0 | Critical | Funds at risk, active exploit | Immediate | All on-call + leadership |
-| P1 | High | Protocol degraded, potential exploit | < 15 min | On-call + security lead |
-| P2 | Medium | Feature broken, no funds at risk | < 1 hour | On-call engineer |
-| P3 | Low | Cosmetic, monitoring noise | < 24 hours | Next business day |
+| Level | Name     | Description                          | Response Time | Escalation               |
+| ----- | -------- | ------------------------------------ | ------------- | ------------------------ |
+| P0    | Critical | Funds at risk, active exploit        | Immediate     | All on-call + leadership |
+| P1    | High     | Protocol degraded, potential exploit | < 15 min      | On-call + security lead  |
+| P2    | Medium   | Feature broken, no funds at risk     | < 1 hour      | On-call engineer         |
+| P3    | Low      | Cosmetic, monitoring noise           | < 24 hours    | Next business day        |
 
 ---
 
@@ -26,15 +26,15 @@
 
 ### Automated Alerts (from `scripts/monitor.sh`)
 
-| Alert | Severity | Meaning |
-|-------|----------|---------|
-| `CRITICAL: Leaf count DECREASED` | P0 | Merkle tree state corruption — possible reorg or exploit |
-| `CRITICAL: Merkle root is zero but leaf count > 0` | P0 | Tree integrity failure |
-| `CRITICAL: RPC node unreachable` | P1 | Infrastructure outage |
-| `CRITICAL: Epoch DECREASED` | P0 | Possible chain rollback or state tampering |
-| `WARNING: Epoch stalled` | P2 | Epoch manager not advancing — check operator |
-| `WARNING: Kakarot adapter PAUSED` | P2 | EVM bridge halted (may be intentional) |
-| `ABNORMAL GROWTH: >100 deposits` | P1 | Possible spam attack or exploit loop |
+| Alert                                              | Severity | Meaning                                                  |
+| -------------------------------------------------- | -------- | -------------------------------------------------------- |
+| `CRITICAL: Leaf count DECREASED`                   | P0       | Merkle tree state corruption — possible reorg or exploit |
+| `CRITICAL: Merkle root is zero but leaf count > 0` | P0       | Tree integrity failure                                   |
+| `CRITICAL: RPC node unreachable`                   | P1       | Infrastructure outage                                    |
+| `CRITICAL: Epoch DECREASED`                        | P0       | Possible chain rollback or state tampering               |
+| `WARNING: Epoch stalled`                           | P2       | Epoch manager not advancing — check operator             |
+| `WARNING: Kakarot adapter PAUSED`                  | P2       | EVM bridge halted (may be intentional)                   |
+| `ABNORMAL GROWTH: >100 deposits`                   | P1       | Possible spam attack or exploit loop                     |
 
 ### Manual Detection
 
@@ -74,6 +74,7 @@ sncast invoke \
 ```
 
 For the privacy pool (if the pool has an emergency pause):
+
 ```bash
 sncast invoke \
   --url $STARKNET_RPC_URL \
@@ -85,6 +86,7 @@ sncast invoke \
 ### Step 2: Investigate
 
 1. **Collect evidence**:
+
    ```bash
    # Export recent events
    starkli events --from-block $SUSPECT_BLOCK \
@@ -200,12 +202,15 @@ sncast invoke \
 ### User-Facing (Status Page)
 
 **Investigating**:
+
 > We are investigating reports of [brief description]. The protocol is [operational/paused for safety]. No user funds are at risk. Updates will follow.
 
 **Identified**:
+
 > The issue has been identified as [root cause]. We are deploying a fix. The protocol is temporarily paused as a precaution.
 
 **Resolved**:
+
 > The incident has been resolved. [Brief description of fix]. All protocol functions have been restored. A full post-mortem will be published within 48 hours.
 
 ### Internal (Team Channel)
