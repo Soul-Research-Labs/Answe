@@ -1,1 +1,1 @@
-F3: cross-chain integration tests -- 15 KakarotAdapter, multi-adapter, and full flow tests
+I3: pool health monitoring script -- RPC liveness, pool balance, leaf count, epoch stall, Kakarot pause detection
