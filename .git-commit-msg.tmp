@@ -1,7 +1,1 @@
-feat(D2): add EVM fee translation for KakarotAdapter
-
-- Add estimate_evm_fee() to KakarotAdapter Cairo contract
-  Returns (protocol_fee, gas_premium, total_fee) given amount and EVM gas used
-- Add estimateEvmFee() to StarkPrivacyClient SDK
-  Pure computation: protocol fee (0.1% BPS) + gas premium (gas * factor / 10000)
-- Gas price factor is admin-configurable via set_gas_price_factor()
+E2: indexer integration tests -- 10 mock-based tests for scanBlocks, pagination, edge cases
