@@ -108,3 +108,87 @@ jobs:
       - name: Check formatting
         run: scarb fmt --check
         working-directory: starkprivacy
+
+  sdk-docs:
+    name: SDK Docs Generation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: starkprivacy/sdk/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: starkprivacy/sdk
+
+      - name: Generate TypeDoc
+        run: npx typedoc --out docs
+        working-directory: starkprivacy/sdk
+
+      - name: Upload docs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-docs-${{ github.sha }}
+          path: starkprivacy/sdk/docs
+          retention-days: 30
+
+  build-artifacts:
+    name: Verify Build Artifacts
+    runs-on: ubuntu-latest
+    needs: cairo-build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Scarb
+        uses: software-mansion/setup-scarb@v1
+        with:
+          scarb-version: ${{ env.SCARB_VERSION }}
+
+      - name: Build contracts
+        run: scarb build
+        working-directory: starkprivacy
+
+      - name: Verify expected artifacts exist
+        working-directory: starkprivacy
+        run: |
+          expected_contracts=(
+            "starkprivacy_PrivacyPool"
+            "starkprivacy_NullifierRegistry"
+            "starkprivacy_StealthRegistry"
+            "starkprivacy_StealthAccountFactory"
+            "starkprivacy_BridgeRouter"
+            "starkprivacy_L1BridgeAdapter"
+            "starkprivacy_EpochManager"
+            "starkprivacy_MadaraAdapter"
+            "starkprivacy_KakarotAdapter"
+            "starkprivacy_SanctionsOracle"
+            "starkprivacy_MockVerifier"
+            "starkprivacy_Timelock"
+            "starkprivacy_MultiSig"
+            "starkprivacy_UpgradeableProxy"
+          )
+          missing=0
+          for contract in "${expected_contracts[@]}"; do
+            if [ ! -f "target/dev/${contract}.contract_class.json" ]; then
+              echo "MISSING: ${contract}.contract_class.json"
+              missing=$((missing + 1))
+            else
+              echo "OK: ${contract}.contract_class.json"
+            fi
+          done
+          if [ $missing -gt 0 ]; then
+            echo "ERROR: $missing contract artifacts missing"
+            exit 1
+          fi
+          echo "All ${#expected_contracts[@]} contract artifacts verified"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-artifacts-${{ github.sha }}
+          path: starkprivacy/target/dev/*.contract_class.json
+          retention-days: 30
