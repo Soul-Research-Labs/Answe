@@ -59,6 +59,7 @@ build-external-contracts = [
     "starkprivacy_bridge::L1BridgeAdapter",
     "starkprivacy_bridge::EpochManager",
     "starkprivacy_bridge::MadaraAdapter",
+    "starkprivacy_bridge::KakarotAdapter",
     "starkprivacy_compliance::SanctionsOracle",
     "starkprivacy_security::Timelock",
     "starkprivacy_security::MultiSig",

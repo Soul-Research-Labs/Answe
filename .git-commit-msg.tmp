@@ -1,1 +1,1 @@
-E2: indexer integration tests -- 10 mock-based tests for scanBlocks, pagination, edge cases
+F3: cross-chain integration tests -- 15 KakarotAdapter, multi-adapter, and full flow tests
