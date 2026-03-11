@@ -331,17 +331,17 @@ const epoch = await client.getCurrentEpoch();
 
 ## Testing
 
-| Suite                                | Count     | Command                                         |
-| ------------------------------------ | --------- | ----------------------------------------------- |
-| Cairo unit + integration             | 223       | `snforge test --workspace`                      |
-| — governance (Timelock + MultiSig)   | 25        | included above                                  |
-| — cross-chain (Kakarot + Madara)     | 28        | included above                                  |
-| — proxy (UpgradeableProxy)           | 9         | included above                                  |
-| — fuzz / property-based              | 15 (×256) | included above                                  |
-| SDK unit tests                       | 197+      | `cd sdk && npm test`                            |
-| SDK indexer + mock integration       | 19        | included above                                  |
-| SDK integration (devnet)             | 9         | `DEVNET_URL=http://127.0.0.1:5050/rpc npm test` |
-| **Total**                            | **420+**  |                                                 |
+| Suite                              | Count     | Command                                         |
+| ---------------------------------- | --------- | ----------------------------------------------- |
+| Cairo unit + integration           | 223       | `snforge test --workspace`                      |
+| — governance (Timelock + MultiSig) | 25        | included above                                  |
+| — cross-chain (Kakarot + Madara)   | 28        | included above                                  |
+| — proxy (UpgradeableProxy)         | 9         | included above                                  |
+| — fuzz / property-based            | 15 (×256) | included above                                  |
+| SDK unit tests                     | 197+      | `cd sdk && npm test`                            |
+| SDK indexer + mock integration     | 19        | included above                                  |
+| SDK integration (devnet)           | 9         | `DEVNET_URL=http://127.0.0.1:5050/rpc npm test` |
+| **Total**                          | **420+**  |                                                 |
 
 ### Running Integration Tests
 
