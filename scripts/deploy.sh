@@ -223,11 +223,24 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 MULTISIG_CLASS=$(declare_contract "MultiSig")
 echo "▸ Deploying MultiSig..."
 # Constructor: threshold=2, signer_count=3, signer_1, signer_2, signer_3
-# WARNING: Using deployer as all 3 signers initially — MUST be replaced
-# after deployment with real governance addresses before going live.
 SIGNER_1="${MULTISIG_SIGNER_1:-$DEPLOYER_ADDR}"
 SIGNER_2="${MULTISIG_SIGNER_2:-$DEPLOYER_ADDR}"
 SIGNER_3="${MULTISIG_SIGNER_3:-$DEPLOYER_ADDR}"
+
+# ─── Signer validation ───────────────────────────────────────
+# All three signers must be distinct for meaningful M-of-N governance.
+# On mainnet, we require explicit signer configuration (no deployer defaults).
+if [[ "$SIGNER_1" == "$SIGNER_2" || "$SIGNER_1" == "$SIGNER_3" || "$SIGNER_2" == "$SIGNER_3" ]]; then
+  if [[ "$NETWORK_NAME" == "mainnet" ]]; then
+    echo "  ✗ ERROR: MultiSig signers must be distinct on mainnet."
+    echo "    Set MULTISIG_SIGNER_1, MULTISIG_SIGNER_2, MULTISIG_SIGNER_3 to different addresses."
+    exit 1
+  else
+    echo "  ⚠ WARNING: MultiSig signers are not unique — using deployer as all signers."
+    echo "    This is acceptable for testnet only. Set MULTISIG_SIGNER_{1,2,3} for production."
+  fi
+fi
+
 MULTISIG_ADDR=$(deploy_contract "$MULTISIG_CLASS" \
   2 3 "$SIGNER_1" "$SIGNER_2" "$SIGNER_3")
 echo ""
