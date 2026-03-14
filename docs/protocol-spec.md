@@ -312,6 +312,34 @@ Starknet sequencer directly — the relayer is the sole `msg.sender`.
   actively serving requests. A future heartbeat or challenge mechanism is
   recommended.
 
+### 9.2 Cross-Chain Message Ordering
+
+StarkPrivacy operates across three settlement layers: Starknet L2, Madara L3 appchains, and L1 Ethereum (via the L1 bridge adapter). Each layer has different message ordering guarantees.
+
+#### Layer-Specific Ordering
+
+| Path | Mechanism | Ordering Guarantee |
+|------|-----------|-------------------|
+| **L2→L1** (Starknet→Ethereum) | `send_message_to_l1_syscall` | Messages arrive in the order they are included in proven batches. No per-transaction ordering within a batch. |
+| **L1→L2** (Ethereum→Starknet) | L1→L2 message consumption | The Starknet sequencer delivers messages; the consumer calls `handle_l1_message`. Order depends on sequencer scheduling. |
+| **L2↔L3** (Starknet↔Madara) | `sync_epoch_root` + `receive_from_appchain` | Epoch-based: the owner relays epoch roots. Ordering is per-epoch (not per-transaction). Intra-epoch ordering is not guaranteed. |
+| **EVM↔Cairo** (Kakarot) | Direct contract call | Synchronous — same transaction, same block. No ordering concerns. |
+
+#### Safety Properties
+
+1. **No double-spend across layers.** Domain-separated nullifiers (`chain_id`, `app_id`) ensure a nullifier spent on Starknet L2 cannot be replayed on a Madara appchain or vice versa.
+
+2. **No commitment replay.** Both `BridgeRouter.unlocked_commitments` and `MadaraAdapter.processed_commitments` track processed commitments. A commitment bridged once cannot be bridged again.
+
+3. **Epoch root integrity.** `receive_from_appchain` verifies the source epoch root matches a previously synced root. If the root was never synced (or was synced incorrectly), the inbound transfer is rejected.
+
+#### Known Limitations
+
+- **No guaranteed delivery.** If the relayer / operator fails to relay an epoch root, inbound transfers for that epoch are blocked until the root is synced. Liveness depends on the operator.
+- **No total ordering across layers.** Two deposits on different layers in the same wall-clock second may appear in any order in the Merkle tree. This does not affect correctness (the ZK proof references a specific root) but may surprise indexers.
+- **Epoch finality lag.** Outbound locks are committed immediately, but the destination cannot accept them until the source epoch is finalized and its root is relayed. This introduces a latency proportional to the epoch duration.
+- **L1→L2 censorship.** The Starknet sequencer controls which L1→L2 messages are consumed and when. A censoring sequencer could delay bridged deposits.
+
 ---
 
 ## 10. Gas Costs (Estimated)
