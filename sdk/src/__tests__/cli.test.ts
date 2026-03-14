@@ -249,3 +249,74 @@ describe("CLI bridge-l1 validation", () => {
     expect(toBigInt(positional[2])).toBe(500n);
   });
 });
+
+// ─── Subprocess CLI integration tests ─────────────────────────
+
+import { execSync } from "node:child_process";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const CLI_PATH = resolve(__dirname, "..", "cli.ts");
+const SDK_DIR = resolve(__dirname, "..", "..");
+
+function runCli(args: string[]): { output: string; exitCode: number } {
+  const escaped = args.map((a) => `'${a}'`).join(" ");
+  try {
+    const output = execSync(`npx tsx '${CLI_PATH}' ${escaped}`, {
+      encoding: "utf8",
+      timeout: 30_000,
+      cwd: SDK_DIR,
+      env: { ...process.env, NODE_NO_WARNINGS: "1" },
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    return { output, exitCode: 0 };
+  } catch (err: any) {
+    const output = (err.stdout ?? "") + (err.stderr ?? "");
+    return { output, exitCode: err.status ?? 1 };
+  }
+}
+
+describe("CLI subprocess: keygen", () => {
+  it("generates a key pair and prints it", () => {
+    const { output, exitCode } = runCli(["keygen"]);
+    expect(exitCode).toBe(0);
+    expect(output).toContain("Spending Key");
+    expect(output).toContain("Viewing Key");
+    expect(output).toContain("Owner Hash");
+    expect(output).toContain("0x");
+  });
+});
+
+describe("CLI subprocess: error handling", () => {
+  it("exits with error for unknown command", () => {
+    const { exitCode } = runCli(["nonexistent-command"]);
+    expect(exitCode).not.toBe(0);
+  });
+
+  it("exits with error when no command given", () => {
+    const { exitCode } = runCli([]);
+    expect(exitCode).not.toBe(0);
+  });
+
+  it("deposit without --key fails with error message", () => {
+    const { output, exitCode } = runCli(["deposit", "100", "--pool", "0x1"]);
+    expect(exitCode).not.toBe(0);
+    expect(output).toContain("--key");
+  });
+
+  it("transfer without arguments fails", () => {
+    const { exitCode } = runCli(["transfer"]);
+    expect(exitCode).not.toBe(0);
+  });
+
+  it("withdraw without arguments fails", () => {
+    const { exitCode } = runCli(["withdraw"]);
+    expect(exitCode).not.toBe(0);
+  });
+
+  it("bridge-l1 without all arguments fails", () => {
+    const { exitCode } = runCli(["bridge-l1", "0xCM"]);
+    expect(exitCode).not.toBe(0);
+  });
+});
