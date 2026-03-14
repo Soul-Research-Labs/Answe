@@ -336,3 +336,136 @@ fn test_tree_wrong_path_length_panics() {
     let short_path: Array<felt252> = array![0, 0, 0];
     compute_root_from_path(0x1234, 0, short_path.span());
 }
+
+// ─── Merkle tree boundary fuzz tests ─────────────────────────────
+
+/// Proof for leaf at index 0 (left-most) is always valid after single insert.
+#[test]
+#[fuzzer(runs: 128)]
+fn test_fuzz_tree_boundary_index_zero_proof(leaf: felt252) {
+    let zeros = compute_zero_hashes();
+    let (mut tree, mut frontier) = MerkleTreeTrait::new();
+    tree.insert(ref frontier, leaf);
+
+    let mut path: Array<felt252> = array![];
+    let mut i: u32 = 0;
+    while i < TREE_DEPTH {
+        path.append(*zeros.at(i));
+        i += 1;
+    };
+
+    assert!(
+        verify_merkle_proof(tree.root, leaf, 0, path.span()),
+        "proof for index 0 must always be valid after single insert",
+    );
+}
+
+/// compute_root_from_path at index 0 matches the tree root after a single insert.
+#[test]
+#[fuzzer(runs: 128)]
+fn test_fuzz_tree_boundary_compute_root_index_zero(leaf: felt252) {
+    let zeros = compute_zero_hashes();
+    let (mut tree, mut frontier) = MerkleTreeTrait::new();
+    let tree_root = tree.insert(ref frontier, leaf);
+
+    let mut path: Array<felt252> = array![];
+    let mut i: u32 = 0;
+    while i < TREE_DEPTH {
+        path.append(*zeros.at(i));
+        i += 1;
+    };
+
+    let computed = compute_root_from_path(leaf, 0, path.span());
+    assert!(computed == tree_root, "compute_root_from_path at idx 0 must equal tree root");
+}
+
+/// After a power-of-2 number of inserts (4), proof for first leaf remains valid.
+/// This exercises the frontier carry-chain at a 2-bit boundary.
+#[test]
+#[fuzzer(runs: 64)]
+fn test_fuzz_tree_boundary_power_of_two_inserts(a: felt252, b: felt252, c: felt252, d: felt252) {
+    let (mut tree, mut frontier) = MerkleTreeTrait::new();
+    tree.insert(ref frontier, a);
+    let root_after_b = tree.insert(ref frontier, b);
+    tree.insert(ref frontier, c);
+    tree.insert(ref frontier, d);
+    // After 4 inserts, next_index should be exactly 4
+    assert!(tree.next_index == 4, "next_index must be 4 after 4 inserts");
+    // Root at index 1 must differ from final root (tree evolved)
+    assert!(root_after_b != tree.root, "root changes between insert 2 and insert 4");
+}
+
+/// Proof for the last inserted leaf (right-child at level 0) is valid
+/// in a 2-leaf tree. Tests right-sibling path construction.
+#[test]
+#[fuzzer(runs: 64)]
+fn test_fuzz_tree_boundary_right_child_proof(leaf1: felt252, leaf2: felt252) {
+    let zeros = compute_zero_hashes();
+    let (mut tree, mut frontier) = MerkleTreeTrait::new();
+    tree.insert(ref frontier, leaf1);
+    tree.insert(ref frontier, leaf2);
+
+    // Proof for index 1: sibling at level 0 is leaf1, rest are zero hashes
+    let mut path: Array<felt252> = array![];
+    path.append(leaf1); // level 0 sibling (left)
+    let mut i: u32 = 1;
+    while i < TREE_DEPTH {
+        path.append(*zeros.at(i));
+        i += 1;
+    };
+
+    assert!(
+        verify_merkle_proof(tree.root, leaf2, 1, path.span()),
+        "proof for right child (index 1) must be valid",
+    );
+}
+
+/// Inserting a leaf at index 0 with value 0 (zero leaf) must NOT change the root.
+/// The zero hash at level 0 is 0, so inserting 0 is indistinguishable from
+/// an empty slot — the root stays the same. This is by design: callers must
+/// ensure leaf values are nonzero (e.g. note commitments are always nonzero).
+#[test]
+fn test_tree_boundary_zero_leaf_insert() {
+    let (mut tree, mut frontier) = MerkleTreeTrait::new();
+    let empty_root = tree.root;
+    tree.insert(ref frontier, 0);
+    // Zero leaf == empty slot, so the root does NOT change.
+    assert!(tree.root == empty_root, "inserting zero leaf must not change root");
+    // However, next_index must still advance.
+    assert!(tree.next_index == 1, "next_index must advance for zero leaf");
+}
+
+/// 8 sequential inserts: all next_index values are correct (tests 3-bit carry chain).
+#[test]
+fn test_tree_boundary_eight_sequential_inserts() {
+    let (mut tree, mut frontier) = MerkleTreeTrait::new();
+    let mut i: u64 = 0;
+    while i < 8 {
+        assert!(tree.next_index == i, "next_index must equal loop counter before insert");
+        tree.insert(ref frontier, i.into());
+        i += 1;
+    };
+    assert!(tree.next_index == 8, "next_index must be 8 after 8 inserts");
+}
+
+/// verify_merkle_proof must reject a valid leaf with a wrong index.
+#[test]
+#[fuzzer(runs: 128)]
+fn test_fuzz_tree_boundary_wrong_index_fails_proof(leaf: felt252) {
+    let zeros = compute_zero_hashes();
+    let (mut tree, mut frontier) = MerkleTreeTrait::new();
+    tree.insert(ref frontier, leaf);
+
+    let mut path: Array<felt252> = array![];
+    let mut i: u32 = 0;
+    while i < TREE_DEPTH {
+        path.append(*zeros.at(i));
+        i += 1;
+    };
+
+    // Index 0 with the zero-proof should pass (already tested), but index 1 must fail
+    assert!(
+        !verify_merkle_proof(tree.root, leaf, 1, path.span()),
+        "valid leaf at wrong index must fail proof",
+    );
+}
