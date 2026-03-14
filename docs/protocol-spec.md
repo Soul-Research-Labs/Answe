@@ -423,6 +423,44 @@ StarkPrivacy uses a two-key model: spending key (`sk`) and viewing key (`vk = Po
 
 **Recommendation:** Store spending keys on hardware wallets or air-gapped devices. Share viewing keys only with trusted auditors under NDA/legal agreement. Implement key rotation reminders in the CLI.
 
+### 9.4 STARK Soundness Parameters
+
+StarkPrivacy delegates STARK proof generation to an external prover backend (stone-prover or S-Two). The application layer defines envelope structure and validates proof format but does not control low-level STARK parameters. This section documents the minimum requirements the prover backend must satisfy.
+
+#### Target Security Level
+
+**128-bit computational security** — an adversary must perform at least $2^{128}$ operations to forge a valid proof.
+
+#### Parameter Requirements
+
+| Parameter | Minimum Value | Rationale |
+|-----------|--------------|-----------|
+| **Field** | Starknet felt252 ($p = 2^{251} + 17 \cdot 2^{192} + 1$) | Native field; fixed by Starknet |
+| **FRI blowup factor** | ≥ 4 (recommended: 16) | Higher blowup increases proof size but improves soundness. Factor of 4 gives $\log_2(4) = 2$ bits per FRI query. |
+| **FRI query count** | ≥ 30 (for blowup 16) or ≥ 64 (for blowup 4) | Each query contributes $\log_2(\text{blowup})$ bits. Need $\geq 128$ total bits. |
+| **Hash function** | Poseidon (Starknet-native) | Must match the commitment/nullifier hash used in circuits. |
+| **Constraint degree** | ≤ 4 | Transfer circuit: degree ~2 (Poseidon rounds + linear constraints). Within standard bounds. |
+| **Trace length** | Power of 2, ≥ $2^{10}$ | Depends on circuit size. Estimated ~$2^{14}$ for transfer, ~$2^{14}$ for withdraw. |
+| **Grinding factor** | ≥ 20 bits | Proof-of-work on proof commitment; raises forging cost by $2^{20}$. |
+
+#### What the Application Layer Validates
+
+The on-chain `MockVerifier` (current) and `StarkVerifier` (production) validate:
+1. **Envelope structure** — proof type field, minimum size (7 for transfer, 8 for withdraw)
+2. **Public input consistency** — Merkle root, nullifiers, commitments match declared values
+3. **STARK proof** — (StarkVerifier only) verifies the STARK proof using Starknet's built-in verifier
+
+The application layer does **not** validate FRI parameters directly — it trusts that a valid STARK proof implies the prover used parameters that satisfy the verifier's acceptance criteria.
+
+#### Pre-Mainnet Checklist
+
+- [ ] Confirm stone-prover / S-Two FRI blowup ≥ 4
+- [ ] Confirm FRI query count yields ≥ 128-bit security
+- [ ] Confirm grinding factor ≥ 20 bits
+- [ ] Run proof verification against StarkVerifier (not MockVerifier) on Sepolia
+- [ ] Measure proof generation time and size across representative circuits
+- [ ] Verify Poseidon instantiation matches Starknet reference (same round constants, MDS matrix)
+
 ---
 
 ## 10. Gas Costs (Estimated)

@@ -38,7 +38,11 @@
   - Withdraw: 8 constraint groups (commitment, nullifier, dup-nullifier, Merkle, change commitment, range, balance, asset, owner)
   - **Fixed**: Transfer circuit was missing asset_id consistency check (inputs/outputs could mix asset types)
   - **Remaining**: fee not range-checked against MAX_NOTE_VALUE (low severity — u128 bound is sufficient)
-- [ ] STARK soundness parameter review
+- [x] STARK soundness parameter review (see protocol-spec.md §9.4)
+  - Parameters delegated to external prover (stone-prover / S-Two)
+  - Minimum requirements documented: 128-bit security, FRI blowup ≥4, ≥3 FRI queries
+  - Application layer validates proof envelope structure only (size, type field)
+  - **Action required before mainnet**: verify deployed prover meets documented minimums
 
 ## 4. Smart Contract Security
 
