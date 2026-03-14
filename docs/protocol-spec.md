@@ -279,13 +279,13 @@ Starknet sequencer directly — the relayer is the sole `msg.sender`.
 
 #### Properties
 
-| Property | Guarantee | Mechanism |
-|----------|-----------|-----------|
-| **Correctness** | A relayer **cannot** steal funds, forge proofs, or double-spend. | All state transitions are verified by the on-chain proof verifier and nullifier registry. A malicious relayer can only submit well-formed proofs. |
-| **Censorship resistance** | A single relayer **can** censor (refuse to submit) a user's transaction. | Mitigated by allowing multiple independent relayers. Any relayer with the user's signed proof can submit it. |
-| **Privacy** | A relayer learns the proof envelope but **cannot** link sender ↔ recipient beyond what is public on-chain. | Fixed-size envelopes, dummy padding, relay jitter, and batch shuffling (see §8.2). |
-| **Liveness** | A relayer may go offline. | SDK supports relayer failover: `RelayerClient` accepts a list of endpoints and rotates on failure. |
-| **Fee fairness** | A relayer charges a fee taken from the shielded amount. | Fee is encoded in the proof's public inputs and verified on-chain. The relayer cannot inflate it. |
+| Property                  | Guarantee                                                                                                  | Mechanism                                                                                                                                         |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Correctness**           | A relayer **cannot** steal funds, forge proofs, or double-spend.                                           | All state transitions are verified by the on-chain proof verifier and nullifier registry. A malicious relayer can only submit well-formed proofs. |
+| **Censorship resistance** | A single relayer **can** censor (refuse to submit) a user's transaction.                                   | Mitigated by allowing multiple independent relayers. Any relayer with the user's signed proof can submit it.                                      |
+| **Privacy**               | A relayer learns the proof envelope but **cannot** link sender ↔ recipient beyond what is public on-chain. | Fixed-size envelopes, dummy padding, relay jitter, and batch shuffling (see §8.2).                                                                |
+| **Liveness**              | A relayer may go offline.                                                                                  | SDK supports relayer failover: `RelayerClient` accepts a list of endpoints and rotates on failure.                                                |
+| **Fee fairness**          | A relayer charges a fee taken from the shielded amount.                                                    | Fee is encoded in the proof's public inputs and verified on-chain. The relayer cannot inflate it.                                                 |
 
 #### Threat: Malicious / Colluding Relayer
 

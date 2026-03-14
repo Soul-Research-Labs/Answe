@@ -243,6 +243,7 @@ sncast invoke \
 ```
 
 **Verification**:
+
 ```bash
 starkli call $MULTISIG_ADDRESS get_signers --rpc $STARKNET_RPC_URL
 starkli call $MULTISIG_ADDRESS get_threshold --rpc $STARKNET_RPC_URL
@@ -263,6 +264,7 @@ sncast invoke \
 ```
 
 **Verification**:
+
 ```bash
 starkli call $POOL_ADDRESS get_operator --rpc $STARKNET_RPC_URL
 ```
@@ -293,6 +295,7 @@ sncast invoke \
 ```
 
 **Verification**:
+
 ```bash
 starkli call $POOL_ADDRESS get_proof_verifier --rpc $STARKNET_RPC_URL
 ```
