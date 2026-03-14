@@ -99,6 +99,20 @@ jobs:
           path: scripts/deployments-sepolia.json
           retention-days: 90
 
+      - name: Post-deployment smoke test
+        env:
+          STARKNET_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
+        run: |
+          if [ -f scripts/deployments-sepolia.json ]; then
+            export POOL_ADDRESS=$(jq -r '.contracts.PrivacyPool.address' scripts/deployments-sepolia.json)
+            export EPOCH_MANAGER_ADDRESS=$(jq -r '.contracts.EpochManager.address' scripts/deployments-sepolia.json)
+            export KAKAROT_ADAPTER_ADDRESS=$(jq -r '.contracts.KakarotAdapter.address' scripts/deployments-sepolia.json)
+            chmod +x scripts/monitor.sh
+            ./scripts/monitor.sh --once
+          else
+            echo "⚠ No deployment manifest found — skipping smoke test"
+          fi
+
       - name: Comment deployment addresses
         if: github.event_name == 'push'
         run: |
