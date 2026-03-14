@@ -100,6 +100,10 @@ pub mod KakarotAdapter {
     /// Default gas price factor: 1 (no premium). Set higher for gas cost coverage.
     const DEFAULT_GAS_PRICE_FACTOR: u256 = 1;
 
+    /// Maximum gas price factor: 100x (1_000_000 basis points).
+    /// Prevents admin key compromise from setting absurdly high fees.
+    const MAX_GAS_PRICE_FACTOR: u256 = 1_000_000;
+
     #[storage]
     struct Storage {
         /// The underlying Starknet PrivacyPool contract.
@@ -121,6 +125,18 @@ pub mod KakarotAdapter {
         EvmTransfer: EvmTransfer,
         EvmWithdraw: EvmWithdraw,
         GasPriceFactorUpdated: GasPriceFactorUpdated,
+        AdapterPaused: AdapterPaused,
+        AdapterUnpaused: AdapterUnpaused,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct AdapterPaused {
+        caller: ContractAddress,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct AdapterUnpaused {
+        caller: ContractAddress,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -160,6 +176,7 @@ pub mod KakarotAdapter {
         gas_price_factor: u256,
     ) {
         assert!(gas_price_factor > 0, "gas price factor must be positive");
+        assert!(gas_price_factor <= MAX_GAS_PRICE_FACTOR, "gas price factor exceeds maximum");
         self.pool.write(pool);
         self.owner.write(owner);
         self.gas_price_factor.write(gas_price_factor);
@@ -271,6 +288,7 @@ pub mod KakarotAdapter {
         fn set_gas_price_factor(ref self: ContractState, factor: u256) {
             self._assert_owner();
             assert!(factor > 0, "gas price factor must be positive");
+            assert!(factor <= MAX_GAS_PRICE_FACTOR, "gas price factor exceeds maximum");
             let old = self.gas_price_factor.read();
             self.gas_price_factor.write(factor);
             self.emit(GasPriceFactorUpdated { old_factor: old, new_factor: factor });
@@ -280,12 +298,14 @@ pub mod KakarotAdapter {
             self._assert_owner();
             assert!(!self.paused.read(), "already paused");
             self.paused.write(true);
+            self.emit(AdapterPaused { caller: get_caller_address() });
         }
 
         fn unpause(ref self: ContractState) {
             self._assert_owner();
             assert!(self.paused.read(), "not paused");
             self.paused.write(false);
+            self.emit(AdapterUnpaused { caller: get_caller_address() });
         }
     }
 

@@ -98,12 +98,20 @@
 - [x] KakarotAdapter routes EVM calls to underlying PrivacyPool (pure proxy)
 - [x] Emergency pause mechanism blocks all mutating EVM operations
 - [x] View functions accessible even when paused
-- [x] Gas price factor bounded (must be > 0, admin-configurable)
+- [x] Gas price factor bounded (must be > 0 and ≤ 1,000,000 BPS / 100x cap, admin-configurable)
 - [x] Fee estimation is stateless and deterministic (no state dependency)
 - [x] Double-pause and double-unpause rejected
+- [x] Pause/unpause emit events for monitoring (AdapterPaused / AdapterUnpaused)
 - [x] 15 cross-chain integration tests cover adapter + pool interaction
-- [ ] Kakarot address translation security review
-- [ ] EVM gas griefing analysis (malicious gas parameter manipulation)
+- [x] Kakarot address translation security review
+  - Adapter accepts felt252 directly; EVM→Cairo translation is handled by Kakarot at the boundary
+  - No custom address mapping logic — adapter is a pure proxy to the pool
+  - No truncation or overflow risk since felt252 is the native type
+- [x] EVM gas griefing analysis (malicious gas parameter manipulation)
+  - `gas_price_factor` capped at MAX_GAS_PRICE_FACTOR (1,000,000 BPS = 100x)
+  - `estimate_evm_fee` is view-only; actual fees are encoded in ZK proof public inputs
+  - A compromised admin can only affect fee UX estimates, not actual on-chain fee enforcement
+  - Pause mechanism provides emergency shutdown if gas factor is manipulated
 
 ## 6. Privacy Properties
 
