@@ -87,12 +87,10 @@ jobs:
       - name: Run npm audit
         run: npm audit --audit-level=high
         working-directory: starkprivacy/sdk
-        continue-on-error: true
 
       - name: Check for known vulnerabilities
         run: npx audit-ci --high
         working-directory: starkprivacy/sdk
-        continue-on-error: true
 
   cairo-format:
     name: Cairo Format Check

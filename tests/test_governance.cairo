@@ -292,9 +292,29 @@ fn test_multisig_set_timelock() {
     let ms = deploy_multisig(2, 3);
     let tl = deploy_timelock(owner(), 60);
 
+    // Requires M-of-N threshold: first signer records approval
     start_cheat_caller_address(ms.contract_address, signer_a());
     ms.set_timelock(tl.contract_address);
-    assert!(ms.get_timelock() == tl.contract_address, "timelock should be set");
+    // Not yet set (1 < threshold of 2)
+    let zero: ContractAddress = 0.try_into().unwrap();
+    assert!(ms.get_timelock() == zero, "timelock should not be set yet");
+
+    // Second signer reaches threshold
+    start_cheat_caller_address(ms.contract_address, signer_b());
+    ms.set_timelock(tl.contract_address);
+    assert!(ms.get_timelock() == tl.contract_address, "timelock should be set after threshold");
+}
+
+#[test]
+#[should_panic(expected: "already approved timelock")]
+fn test_multisig_set_timelock_double_approve_rejected() {
+    let ms = deploy_multisig(2, 3);
+    let tl = deploy_timelock(owner(), 60);
+
+    start_cheat_caller_address(ms.contract_address, signer_a());
+    ms.set_timelock(tl.contract_address);
+    // Same signer tries again — should panic
+    ms.set_timelock(tl.contract_address);
 }
 
 #[test]
@@ -303,9 +323,13 @@ fn test_multisig_set_timelock_twice_rejected() {
     let ms = deploy_multisig(2, 3);
     let tl = deploy_timelock(owner(), 60);
 
+    // First: set timelock with threshold approvals
     start_cheat_caller_address(ms.contract_address, signer_a());
     ms.set_timelock(tl.contract_address);
-    // Second call should fail
+    start_cheat_caller_address(ms.contract_address, signer_b());
+    ms.set_timelock(tl.contract_address);
+    // Now timelock is set. Third signer tries — should fail with "timelock already set"
+    start_cheat_caller_address(ms.contract_address, signer_c());
     ms.set_timelock(tl.contract_address);
 }
 
@@ -327,11 +351,14 @@ fn test_multisig_forward_to_timelock() {
     // Timelock with multisig as proposer
     let tl = deploy_timelock(ms.contract_address, 60);
 
-    // Set timelock on multisig
+    // Set timelock on multisig (requires 2-of-3 threshold)
     start_cheat_caller_address(ms.contract_address, signer_a());
+    ms.set_timelock(tl.contract_address);
+    start_cheat_caller_address(ms.contract_address, signer_b());
     ms.set_timelock(tl.contract_address);
 
     // Propose an operation
+    start_cheat_caller_address(ms.contract_address, signer_a());
     let target: ContractAddress = 0x999.try_into().unwrap();
     let calldata_hash: felt252 = 0xABC;
     let id = ms.propose(target, 'do_thing', calldata_hash);
@@ -360,7 +387,10 @@ fn test_multisig_forward_insufficient_approvals_rejected() {
 
     start_cheat_caller_address(ms.contract_address, signer_a());
     ms.set_timelock(tl.contract_address);
+    start_cheat_caller_address(ms.contract_address, signer_b());
+    ms.set_timelock(tl.contract_address);
 
+    start_cheat_caller_address(ms.contract_address, signer_a());
     let target: ContractAddress = 0x999.try_into().unwrap();
     let id = ms.propose(target, 'do_thing', 0xABC);
     // Only 1 approval (from proposer), need 2
@@ -375,7 +405,10 @@ fn test_multisig_forward_twice_rejected() {
 
     start_cheat_caller_address(ms.contract_address, signer_a());
     ms.set_timelock(tl.contract_address);
+    start_cheat_caller_address(ms.contract_address, signer_b());
+    ms.set_timelock(tl.contract_address);
 
+    start_cheat_caller_address(ms.contract_address, signer_a());
     let target: ContractAddress = 0x999.try_into().unwrap();
     let id = ms.propose(target, 'do_thing', 0xABC);
 
@@ -413,11 +446,14 @@ fn test_full_governance_flow() {
     let ms = deploy_multisig(2, 3);
     let tl = deploy_timelock(ms.contract_address, 60);
 
-    // Wire multisig to timelock
+    // Wire multisig to timelock (requires 2-of-3)
     start_cheat_caller_address(ms.contract_address, signer_a());
+    ms.set_timelock(tl.contract_address);
+    start_cheat_caller_address(ms.contract_address, signer_b());
     ms.set_timelock(tl.contract_address);
 
     // Propose: update timelock's min_delay to 120
+    start_cheat_caller_address(ms.contract_address, signer_a());
     let target = tl.contract_address;
     let selector = selector!("update_min_delay");
     let calldata: Array<felt252> = array![120];

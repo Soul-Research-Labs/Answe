@@ -63,7 +63,9 @@ export class KeyManager {
 
   private assertAlive(): void {
     if (this.destroyed) {
-      throw new Error("KeyManager has been destroyed — key material is no longer available.");
+      throw new Error(
+        "KeyManager has been destroyed — key material is no longer available.",
+      );
     }
   }
 

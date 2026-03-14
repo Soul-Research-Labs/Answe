@@ -21,11 +21,17 @@ PID_FILE="$SCRIPT_DIR/.devnet.pid"
 
 stop_devnet() {
   if [[ -f "$PID_FILE" ]]; then
-    local pid
-    pid=$(cat "$PID_FILE")
-    if kill -0 "$pid" 2>/dev/null; then
-      echo "▸ Stopping devnet (PID $pid)..."
-      kill "$pid"
+    local pid_data
+    pid_data=$(cat "$PID_FILE")
+    if [[ "$pid_data" == docker:* ]]; then
+      local container_id="${pid_data#docker:}"
+      echo "▸ Stopping devnet (Docker container $container_id)..."
+      docker stop "$container_id" 2>/dev/null || docker stop starkprivacy-devnet 2>/dev/null
+      rm -f "$PID_FILE"
+      echo "  ✓ Devnet stopped"
+    elif kill -0 "$pid_data" 2>/dev/null; then
+      echo "▸ Stopping devnet (PID $pid_data)..."
+      kill "$pid_data"
       rm -f "$PID_FILE"
       echo "  ✓ Devnet stopped"
     else
@@ -63,15 +69,15 @@ else
       &
     echo $! > "$PID_FILE"
   elif command -v docker &> /dev/null; then
-    docker run -d --rm \
+    CONTAINER_ID=$(docker run -d --rm \
       -p "${DEVNET_PORT}:5050" \
       --name starkprivacy-devnet \
       shardlabs/starknet-devnet-rs:latest \
       --seed 42 \
       --gas-price 1 \
       --accounts 3 \
-      --initial-balance 1000000000000000000000
-    echo "docker" > "$PID_FILE"
+      --initial-balance 1000000000000000000000)
+    echo "docker:${CONTAINER_ID}" > "$PID_FILE"
   else
     echo "  ✗ Neither 'starknet-devnet' nor 'docker' found."
     echo "    Install: cargo install starknet-devnet"

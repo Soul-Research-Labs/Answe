@@ -133,7 +133,18 @@ case "$NETWORK_NAME" in
     NATIVE_TOKEN="${NATIVE_TOKEN_ADDRESS:-0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7}"
     ;;
 esac
-CHAIN_ID="${CHAIN_ID_OVERRIDE:-0x534e5f5345504f4c4941}"  # SN_SEPOLIA as felt (override for mainnet)
+# Compute CHAIN_ID per network
+case "$NETWORK_NAME" in
+  sepolia)
+    CHAIN_ID="${CHAIN_ID_OVERRIDE:-0x534e5f5345504f4c4941}"  # SN_SEPOLIA
+    ;;
+  mainnet)
+    CHAIN_ID="${CHAIN_ID_OVERRIDE:-0x534e5f4d41494e}"        # SN_MAIN
+    ;;
+  *)
+    CHAIN_ID="${CHAIN_ID_OVERRIDE:-0x534e5f5345504f4c4941}"  # Default to sepolia
+    ;;
+esac
 APP_ID="${APP_ID_OVERRIDE:-0x535441524b505249564143}"    # STARKPRIVAC as felt
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

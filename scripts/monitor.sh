@@ -115,11 +115,22 @@ compute_selector() {
       return
     fi
   fi
-  # Fallback: use Python + hashlib (sn_keccak = keccak256 truncated to 250 bits)
+  # Fallback: use Python + pycryptodome/pysha3 for correct Keccak-256
+  # NOTE: SHA3-256 != Keccak-256 (different padding). Starknet uses Keccak-256.
   if command -v python3 &>/dev/null; then
     python3 -c "
-import hashlib
-h = int.from_bytes(hashlib.sha3_256(b'$func_name').digest(), 'big')
+try:
+    from Crypto.Hash import keccak
+    k = keccak.new(digest_bits=256)
+    k.update(b'$func_name')
+    h = int.from_bytes(k.digest(), 'big')
+except ImportError:
+    try:
+        import sha3
+        h = int.from_bytes(sha3.keccak_256(b'$func_name').digest(), 'big')
+    except ImportError:
+        import hashlib
+        h = int.from_bytes(hashlib.new('keccak_256', b'$func_name').digest(), 'big')
 h = h & ((1 << 250) - 1)
 print(hex(h))
 " 2>/dev/null && return

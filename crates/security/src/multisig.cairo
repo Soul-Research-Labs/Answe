@@ -81,6 +81,8 @@ pub mod MultiSig {
         executed: Map<u64, bool>,
         /// Timelock contract address for forwarding
         timelock: ContractAddress,
+        /// (timelock_address, signer) -> has_approved set_timelock
+        timelock_approvals: Map<(ContractAddress, ContractAddress), bool>,
     }
 
     #[event]
@@ -252,7 +254,30 @@ pub mod MultiSig {
             let zero: ContractAddress = 0.try_into().unwrap();
             assert!(self.timelock.read() == zero, "timelock already set");
             assert!(timelock != zero, "invalid timelock address");
-            self.timelock.write(timelock);
+
+            // SECURITY: Require M-of-N threshold approval before setting timelock.
+            // Each signer calls set_timelock() to record their approval.
+            // The timelock is only written once threshold approvals are collected.
+            assert!(!self.timelock_approvals.read((timelock, caller)), "already approved timelock");
+            self.timelock_approvals.write((timelock, caller), true);
+
+            // Count total approvals
+            let threshold = self.threshold.read();
+            let signer_count = self.signer_count.read();
+            let mut approved_count: u32 = 0;
+            let mut i: u32 = 0;
+            while i < signer_count {
+                let signer = self.signers.read(i);
+                if self.timelock_approvals.read((timelock, signer)) {
+                    approved_count += 1;
+                };
+                i += 1;
+            };
+
+            // Only set if threshold is met; otherwise just record the approval
+            if approved_count >= threshold {
+                self.timelock.write(timelock);
+            }
         }
 
         fn get_timelock(self: @ContractState) -> ContractAddress {

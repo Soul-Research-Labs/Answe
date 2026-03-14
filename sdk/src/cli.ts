@@ -409,7 +409,8 @@ async function cmdBackup(
   console.log(`Saving encrypted note backup to ${filePath}...`);
   await saveNotesToFile(client.notes, filePath, flags.password);
   const stats = client.notes.getStats();
-  console.log(`Backup complete: ${stats.total} note(s) saved.`);
+  const total = stats.unspent + stats.spent + stats.pending;
+  console.log(`Backup complete: ${total} note(s) saved.`);
 }
 
 async function cmdRestore(
@@ -430,8 +431,9 @@ async function cmdRestore(
 
   const nm = await loadNotesFromFile(filePath, flags.password);
   const stats = nm.getStats();
+  const total = stats.unspent + stats.spent + stats.pending;
   console.log(`Restore complete!`);
-  console.log(`  Total notes : ${stats.total}`);
+  console.log(`  Total notes : ${total}`);
   console.log(`  Unspent     : ${stats.unspent}`);
   console.log(`  Spent       : ${stats.spent}`);
   console.log(`  Pending     : ${stats.pending}`);
@@ -455,7 +457,7 @@ async function cmdVerifyBackup(
 
   const stats = await verifyBackup(filePath, flags.password);
   console.log(`Backup is valid!`);
-  console.log(`  Total notes : ${stats.total}`);
+  console.log(`  Total notes : ${stats.noteCount}`);
   console.log(`  Unspent     : ${stats.unspent}`);
   console.log(`  Spent       : ${stats.spent}`);
   console.log(`  Pending     : ${stats.pending}`);

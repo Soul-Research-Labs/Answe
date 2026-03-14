@@ -146,8 +146,10 @@ export function buildBatch(
   // Rejection sampling shuffle — avoids modular bias
   for (let i = envelopes.length - 1; i > 0; i--) {
     const bound = BigInt(i + 1);
-    // Rejection sampling: re-draw if value falls in biased zone
-    const maxUnbiased = 2n ** 251n - (2n ** 251n % bound);
+    // randomFelt252() returns values in [0, FIELD_PRIME). Use FIELD_PRIME as the
+    // sampling range to correctly compute the rejection threshold.
+    const FIELD_PRIME = 2n ** 251n + 17n * 2n ** 192n + 1n;
+    const maxUnbiased = FIELD_PRIME - (FIELD_PRIME % bound);
     let r: bigint;
     do {
       r = randomFelt252();

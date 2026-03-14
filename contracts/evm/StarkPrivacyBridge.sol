@@ -92,7 +92,10 @@ contract StarkPrivacyBridge {
 
     event Paused(address indexed caller);
     event Unpaused(address indexed caller);
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event OwnershipTransferred(
+        address indexed previousOwner,
+        address indexed newOwner
+    );
 
     // ─── Errors ──────────────────────────────────────────────────
 
@@ -162,8 +165,8 @@ contract StarkPrivacyBridge {
         // [commitment, amount_low, amount_high, asset_id]
         uint256[] memory payload = new uint256[](4);
         payload[0] = commitment;
-        payload[1] = msg.value & ((1 << 128) - 1);  // low 128 bits
-        payload[2] = msg.value >> 128;                // high 128 bits
+        payload[1] = msg.value & ((1 << 128) - 1); // low 128 bits
+        payload[2] = msg.value >> 128; // high 128 bits
         payload[3] = assetId;
 
         // Send message to L2 via Starknet core.
@@ -207,10 +210,10 @@ contract StarkPrivacyBridge {
         // Must match exactly what L2 L1BridgeAdapter sent via send_message_to_l1_syscall.
         uint256[] memory payload = new uint256[](5);
         payload[0] = commitment;
-        payload[1] = amount & ((1 << 128) - 1);       // amount_low
-        payload[2] = amount >> 128;                     // amount_high
+        payload[1] = amount & ((1 << 128) - 1); // amount_low
+        payload[2] = amount >> 128; // amount_high
         payload[3] = assetId;
-        payload[4] = uint256(uint160(recipient));       // L1 recipient as felt252
+        payload[4] = uint256(uint160(recipient)); // L1 recipient as felt252
 
         // Consume the message from L2. Reverts if the message doesn't exist.
         starknetCore.consumeMessageFromL2(l2BridgeAdapter, payload);

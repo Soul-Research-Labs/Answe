@@ -56,6 +56,9 @@ pub mod StealthRegistry {
     use starknet::storage::{Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess, StoragePointerWriteAccess, StoragePathEntry};
     use starkprivacy_stealth::encrypted_note::NOTE_PADDED_SIZE;
 
+    /// Maximum number of ephemeral keys allowed (prevents storage DoS).
+    const MAX_EPHEMERAL_KEYS: u64 = 1_000_000;
+
     #[storage]
     struct Storage {
         /// Meta-address: user -> (spending_pub_x, viewing_pub_x)
@@ -127,6 +130,7 @@ pub mod StealthRegistry {
             assert!(encrypted_note.len() <= NOTE_PADDED_SIZE, "encrypted note too large");
 
             let index = self.ephemeral_count.read();
+            assert!(index < MAX_EPHEMERAL_KEYS, "ephemeral key storage full");
             self.ephemeral_pub_x.write(index, ephemeral_pub_x);
             self.ephemeral_commitment.write(index, commitment);
             self.ephemeral_scan_tag.write(index, scan_tag);

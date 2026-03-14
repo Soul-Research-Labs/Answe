@@ -23,7 +23,7 @@ StarkPrivacy port the core concepts from **ZAseon** (cross-chain ZK privacy midd
 │  │ transfer()  │  │ V2 nullifier │  │ finalization      │   │
 │  │ withdraw()  │  │              │  │                   │   │
 │  └──────┬──────┘  └──────┬───────┘  └───────┬───────────┘   │
-│         │                │                   │              │
+│         │                │                  │               │
 │  ┌──────▼──────┐  ┌──────▼───────┐  ┌───────▼───────────┐   │
 │  │ MerkleTree  │  │ Compliance   │  │ StealthRegistry   │   │
 │  │ Poseidon    │  │ Oracle hooks │  │ ECDH one-time     │   │

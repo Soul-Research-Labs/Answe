@@ -170,7 +170,17 @@ export class Relayer {
     // Chain onto processing queue (sequential for nonce safety)
     this.processingQueue = this.processingQueue
       .then(() => this.processWithRetry(job.id))
-      .catch(() => {});
+      .catch(async (err) => {
+        console.error(`[Relayer] Queue error processing job ${job.id}:`, err);
+        try {
+          const failedJob = await this.storage.load(job.id);
+          if (failedJob && failedJob.status !== "confirmed") {
+            failedJob.status = "failed";
+            failedJob.updatedAt = Date.now();
+            await this.storage.save(failedJob);
+          }
+        } catch { /* storage error during cleanup */ }
+      });
 
     return job.id;
   }
@@ -201,7 +211,17 @@ export class Relayer {
     for (const job of toRetry) {
       this.processingQueue = this.processingQueue
         .then(() => this.processWithRetry(job.id))
-        .catch(() => {});
+        .catch(async (err) => {
+          console.error(`[Relayer] Recovery error for job ${job.id}:`, err);
+          try {
+            const failedJob = await this.storage.load(job.id);
+            if (failedJob && failedJob.status !== "confirmed") {
+              failedJob.status = "failed";
+              failedJob.updatedAt = Date.now();
+              await this.storage.save(failedJob);
+            }
+          } catch { /* storage error during cleanup */ }
+        });
     }
 
     return toRetry.length;

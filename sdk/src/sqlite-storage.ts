@@ -9,11 +9,7 @@
  *   const storage = new SqliteJobStorage("./relayer-jobs.db");
  *   const relayer = new Relayer({ ..., storage });
  */
-import type {
-  JobStorageAdapter,
-  RelayerJob,
-  JobStatus,
-} from "./relayer.js";
+import type { JobStorageAdapter, RelayerJob, JobStatus } from "./relayer.js";
 
 // better-sqlite3 is an optional dependency — loaded dynamically
 let Database: any;
@@ -104,7 +100,9 @@ export class SqliteJobStorage implements JobStorageAdapter {
   async loadAll(status?: JobStatus): Promise<RelayerJob[]> {
     if (status) {
       const rows = this.db
-        .prepare("SELECT * FROM relayer_jobs WHERE status = ? ORDER BY created_at")
+        .prepare(
+          "SELECT * FROM relayer_jobs WHERE status = ? ORDER BY created_at",
+        )
         .all(status) as DbRow[];
       return rows.map(rowToJob);
     }
@@ -129,9 +127,13 @@ export class SqliteJobStorage implements JobStorageAdapter {
    * Move a failed job to dead-letter status so it won't be retried.
    */
   async markDead(id: string, reason: string): Promise<void> {
-    this.db.prepare(`
+    this.db
+      .prepare(
+        `
       UPDATE relayer_jobs SET status = 'failed', error = ?, updated_at = ? WHERE id = ?
-    `).run(reason, Date.now(), id);
+    `,
+      )
+      .run(reason, Date.now(), id);
   }
 
   /**
@@ -139,7 +141,9 @@ export class SqliteJobStorage implements JobStorageAdapter {
    */
   async counts(): Promise<Record<string, number>> {
     const rows = this.db
-      .prepare("SELECT status, COUNT(*) as cnt FROM relayer_jobs GROUP BY status")
+      .prepare(
+        "SELECT status, COUNT(*) as cnt FROM relayer_jobs GROUP BY status",
+      )
       .all() as { status: string; cnt: number }[];
     const result: Record<string, number> = {};
     for (const r of rows) {
@@ -174,8 +178,11 @@ function serializeProof(proof: RelayerJob["proof"]): string {
     proofType: proof.proofType,
     merkleRoot: "0x" + proof.merkleRoot.toString(16),
     nullifiers: proof.nullifiers.map((n) => "0x" + n.toString(16)),
-    outputCommitments: proof.outputCommitments.map((c) => "0x" + c.toString(16)),
-    exitValue: proof.exitValue != null ? "0x" + proof.exitValue.toString(16) : undefined,
+    outputCommitments: proof.outputCommitments.map(
+      (c) => "0x" + c.toString(16),
+    ),
+    exitValue:
+      proof.exitValue != null ? "0x" + proof.exitValue.toString(16) : undefined,
     recipient: proof.recipient,
     fee: "0x" + proof.fee.toString(16),
     proofData: proof.proofData.map((d) => "0x" + d.toString(16)),

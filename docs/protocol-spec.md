@@ -318,12 +318,12 @@ StarkPrivacy operates across three settlement layers: Starknet L2, Madara L3 app
 
 #### Layer-Specific Ordering
 
-| Path | Mechanism | Ordering Guarantee |
-|------|-----------|-------------------|
-| **L2→L1** (Starknet→Ethereum) | `send_message_to_l1_syscall` | Messages arrive in the order they are included in proven batches. No per-transaction ordering within a batch. |
-| **L1→L2** (Ethereum→Starknet) | L1→L2 message consumption | The Starknet sequencer delivers messages; the consumer calls `handle_l1_message`. Order depends on sequencer scheduling. |
-| **L2↔L3** (Starknet↔Madara) | `sync_epoch_root` + `receive_from_appchain` | Epoch-based: the owner relays epoch roots. Ordering is per-epoch (not per-transaction). Intra-epoch ordering is not guaranteed. |
-| **EVM↔Cairo** (Kakarot) | Direct contract call | Synchronous — same transaction, same block. No ordering concerns. |
+| Path                          | Mechanism                                   | Ordering Guarantee                                                                                                              |
+| ----------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| **L2→L1** (Starknet→Ethereum) | `send_message_to_l1_syscall`                | Messages arrive in the order they are included in proven batches. No per-transaction ordering within a batch.                   |
+| **L1→L2** (Ethereum→Starknet) | L1→L2 message consumption                   | The Starknet sequencer delivers messages; the consumer calls `handle_l1_message`. Order depends on sequencer scheduling.        |
+| **L2↔L3** (Starknet↔Madara)   | `sync_epoch_root` + `receive_from_appchain` | Epoch-based: the owner relays epoch roots. Ordering is per-epoch (not per-transaction). Intra-epoch ordering is not guaranteed. |
+| **EVM↔Cairo** (Kakarot)       | Direct contract call                        | Synchronous — same transaction, same block. No ordering concerns.                                                               |
 
 #### Safety Properties
 
@@ -348,13 +348,13 @@ Each spend publishes two nullifiers on-chain: `nf = Poseidon(Poseidon(sk, cm), P
 
 **What nullifiers reveal:**
 
-| Observable | Inference | Severity |
-|-----------|-----------|----------|
-| Nullifier value | Nothing — Poseidon is a PRF; the nullifier is computationally indistinguishable from random without `sk`. | None |
-| Nullifier count per block | Number of spends (not deposits) in that block. | Low |
-| Two nullifiers per transaction | Each tx spends exactly two notes (fixed fan-in). An observer knows each tx consumes two UTXOs. | Low (by design) |
-| Nullifier timing | When a note was spent (block timestamp). Combined with deposit timestamps, narrows the anonymity set. | Medium |
-| Nullifier absence | If a known commitment has no corresponding nullifier, the note is unspent. | Low |
+| Observable                     | Inference                                                                                                 | Severity        |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------- | --------------- |
+| Nullifier value                | Nothing — Poseidon is a PRF; the nullifier is computationally indistinguishable from random without `sk`. | None            |
+| Nullifier count per block      | Number of spends (not deposits) in that block.                                                            | Low             |
+| Two nullifiers per transaction | Each tx spends exactly two notes (fixed fan-in). An observer knows each tx consumes two UTXOs.            | Low (by design) |
+| Nullifier timing               | When a note was spent (block timestamp). Combined with deposit timestamps, narrows the anonymity set.     | Medium          |
+| Nullifier absence              | If a known commitment has no corresponding nullifier, the note is unspent.                                | Low             |
 
 **Anonymity set analysis:**
 
@@ -363,27 +363,30 @@ With a Merkle tree of $N$ leaves and $S$ spent nullifiers, the anonymity set siz
 The **minimum anonymity set** equals the number of deposits since the last root the verifier accepts (ring buffer of 100 roots).
 
 **Mitigations already in place:**
+
 - Domain separation (`chain_id`, `app_id`) prevents cross-chain nullifier correlation
 - Fixed 2-in-2-out fan-in/fan-out hides whether a tx is a self-transfer, split, or merge
 - Dummy envelope batching (see §9.3.2) hides the true transaction rate
 
 **Residual risk:**
+
 - A passive observer with deposit timing data can narrow the anonymity set by intersecting deposit-time windows with spend-time windows. Standard countermeasure: users should wait for at least $k$ additional deposits before spending (configurable in SDK via `minAnonymitySet`).
 
 #### 9.3.2 Traffic Analysis Resistance
 
 The SDK implements four layers of metadata resistance:
 
-| Layer | Mechanism | Parameters | Protection |
-|-------|-----------|-----------|------------|
-| **Envelope padding** | All proof types padded to 64 felt252 elements | `ENVELOPE_SIZE = 64` | Transfer/withdraw/dummy indistinguishable by size |
-| **Batch padding** | Real proofs mixed with dummy proofs | `DEFAULT_BATCH_SIZE = 8` | Hides number of real txs per batch |
-| **Batch shuffling** | Fisher-Yates shuffle with rejection sampling | Unbiased | Hides real/dummy positions within batch |
-| **Relay jitter** | Uniform random delay before submission | 100ms – 2000ms | Decorrelates user action time from on-chain time |
+| Layer                | Mechanism                                     | Parameters               | Protection                                        |
+| -------------------- | --------------------------------------------- | ------------------------ | ------------------------------------------------- |
+| **Envelope padding** | All proof types padded to 64 felt252 elements | `ENVELOPE_SIZE = 64`     | Transfer/withdraw/dummy indistinguishable by size |
+| **Batch padding**    | Real proofs mixed with dummy proofs           | `DEFAULT_BATCH_SIZE = 8` | Hides number of real txs per batch                |
+| **Batch shuffling**  | Fisher-Yates shuffle with rejection sampling  | Unbiased                 | Hides real/dummy positions within batch           |
+| **Relay jitter**     | Uniform random delay before submission        | 100ms – 2000ms           | Decorrelates user action time from on-chain time  |
 
 **Adversary model:**
 
 A network-level adversary who can:
+
 1. Observe all on-chain transactions (public by definition)
 2. Observe the relayer's submission timing
 3. Correlate user IP→relayer connection with on-chain events
@@ -395,6 +398,7 @@ A network-level adversary who can:
 - **IP correlation:** If a single user connects to the relayer and a batch is submitted shortly after, the adversary can link with probability inversely proportional to the number of concurrent users.
 
 **Known limitations:**
+
 - **Single-user batches.** If only one user is active, $r=1$ and the adversary knows one of the 8 envelopes is real (12.5% chance per guess). This is a fundamental limitation of low-traffic pools.
 - **No mix network.** The relayer is a single hop, not a multi-hop mix network. IP-level anonymity requires external tools (Tor, VPN).
 - **No cover traffic from the protocol.** Dummy envelopes are generated by the client, not by the relayer. If the relayer has zero clients, it submits zero batches — revealing inactivity.
@@ -405,17 +409,18 @@ A network-level adversary who can:
 
 StarkPrivacy uses a two-key model: spending key (`sk`) and viewing key (`vk = Poseidon(sk, 1)`).
 
-| Compromised Key | What Attacker Gains | What Attacker Cannot Do |
-|----------------|--------------------|-----------------------|
-| **Viewing key only** | Scan all incoming notes (via `tryScanNote`); learn which notes belong to the user; compute total balance | Spend any note (cannot derive nullifiers without `sk`); forge new commitments; impersonate the user on-chain |
-| **Spending key** | Everything the viewing key provides, PLUS: derive nullifiers to spend all notes; forge transfers/withdrawals | N/A — full compromise of all current and past notes |
-| **Ephemeral key** | Recover the shared secret for one specific stealth note; learn the recipient of that single payment | Scan other notes; spend any note; compromise the viewing key or spending key |
+| Compromised Key      | What Attacker Gains                                                                                          | What Attacker Cannot Do                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| **Viewing key only** | Scan all incoming notes (via `tryScanNote`); learn which notes belong to the user; compute total balance     | Spend any note (cannot derive nullifiers without `sk`); forge new commitments; impersonate the user on-chain |
+| **Spending key**     | Everything the viewing key provides, PLUS: derive nullifiers to spend all notes; forge transfers/withdrawals | N/A — full compromise of all current and past notes                                                          |
+| **Ephemeral key**    | Recover the shared secret for one specific stealth note; learn the recipient of that single payment          | Scan other notes; spend any note; compromise the viewing key or spending key                                 |
 
 **Forward secrecy:** Compromising the viewing key does **not** reveal past ephemeral keys or shared secrets (Poseidon is one-way). However, it does reveal all future and past note ownership (since the viewing key is static). True forward secrecy would require ratcheted viewing keys (not currently implemented).
 
 **Viewing key sharing (auditor model):** The `exportViewingKeys()` function enables users to share read-only access with auditors or compliance officers. The auditor can verify balances and transaction involvement but cannot spend. This is the basis for the selective disclosure model (see §8 Compliance).
 
 **Post-compromise recovery:** If a spending key is suspected compromised:
+
 1. Generate a new `KeyManager` with fresh keys
 2. Transfer all notes from old key → new key (self-transfer)
 3. Old nullifiers will be spent; new commitments belong to new key
@@ -433,19 +438,20 @@ StarkPrivacy delegates STARK proof generation to an external prover backend (sto
 
 #### Parameter Requirements
 
-| Parameter | Minimum Value | Rationale |
-|-----------|--------------|-----------|
-| **Field** | Starknet felt252 ($p = 2^{251} + 17 \cdot 2^{192} + 1$) | Native field; fixed by Starknet |
-| **FRI blowup factor** | ≥ 4 (recommended: 16) | Higher blowup increases proof size but improves soundness. Factor of 4 gives $\log_2(4) = 2$ bits per FRI query. |
-| **FRI query count** | ≥ 30 (for blowup 16) or ≥ 64 (for blowup 4) | Each query contributes $\log_2(\text{blowup})$ bits. Need $\geq 128$ total bits. |
-| **Hash function** | Poseidon (Starknet-native) | Must match the commitment/nullifier hash used in circuits. |
-| **Constraint degree** | ≤ 4 | Transfer circuit: degree ~2 (Poseidon rounds + linear constraints). Within standard bounds. |
-| **Trace length** | Power of 2, ≥ $2^{10}$ | Depends on circuit size. Estimated ~$2^{14}$ for transfer, ~$2^{14}$ for withdraw. |
-| **Grinding factor** | ≥ 20 bits | Proof-of-work on proof commitment; raises forging cost by $2^{20}$. |
+| Parameter             | Minimum Value                                           | Rationale                                                                                                        |
+| --------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **Field**             | Starknet felt252 ($p = 2^{251} + 17 \cdot 2^{192} + 1$) | Native field; fixed by Starknet                                                                                  |
+| **FRI blowup factor** | ≥ 4 (recommended: 16)                                   | Higher blowup increases proof size but improves soundness. Factor of 4 gives $\log_2(4) = 2$ bits per FRI query. |
+| **FRI query count**   | ≥ 30 (for blowup 16) or ≥ 64 (for blowup 4)             | Each query contributes $\log_2(\text{blowup})$ bits. Need $\geq 128$ total bits.                                 |
+| **Hash function**     | Poseidon (Starknet-native)                              | Must match the commitment/nullifier hash used in circuits.                                                       |
+| **Constraint degree** | ≤ 4                                                     | Transfer circuit: degree ~2 (Poseidon rounds + linear constraints). Within standard bounds.                      |
+| **Trace length**      | Power of 2, ≥ $2^{10}$                                  | Depends on circuit size. Estimated ~$2^{14}$ for transfer, ~$2^{14}$ for withdraw.                               |
+| **Grinding factor**   | ≥ 20 bits                                               | Proof-of-work on proof commitment; raises forging cost by $2^{20}$.                                              |
 
 #### What the Application Layer Validates
 
 The on-chain `MockVerifier` (current) and `StarkVerifier` (production) validate:
+
 1. **Envelope structure** — proof type field, minimum size (7 for transfer, 8 for withdraw)
 2. **Public input consistency** — Merkle root, nullifiers, commitments match declared values
 3. **STARK proof** — (StarkVerifier only) verifies the STARK proof using Starknet's built-in verifier

@@ -18,9 +18,7 @@ function serializeProof(proof: any): string {
       (c: bigint) => "0x" + c.toString(16),
     ),
     exitValue:
-      proof.exitValue != null
-        ? "0x" + proof.exitValue.toString(16)
-        : undefined,
+      proof.exitValue != null ? "0x" + proof.exitValue.toString(16) : undefined,
     recipient: proof.recipient,
     fee: "0x" + proof.fee.toString(16),
     proofData: proof.proofData.map((d: bigint) => "0x" + d.toString(16)),

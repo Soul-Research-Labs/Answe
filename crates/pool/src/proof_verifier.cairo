@@ -247,9 +247,12 @@ pub mod StarkVerifier {
             }
 
             // Verify the STARK proof commitment at proof[7]:
-            // proof_hash must equal Poseidon(Poseidon(root, nf0), Poseidon(nf1, out_cm0))
+            // proof_hash must equal Poseidon(Poseidon(root, nf0), Poseidon(nf1, Poseidon(oc0, oc1)))
+            // SECURITY: Both output commitments must be bound to the proof hash to prevent
+            // forgery of output_commitment_1.
             let left = poseidon_hash_2(merkle_root, nullifier_0);
-            let right = poseidon_hash_2(nullifier_1, output_commitment_0);
+            let oc_hash = poseidon_hash_2(output_commitment_0, output_commitment_1);
+            let right = poseidon_hash_2(nullifier_1, oc_hash);
             let expected_proof_hash = poseidon_hash_2(left, right);
 
             let proof_hash = *proof.at(7);

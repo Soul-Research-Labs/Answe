@@ -116,12 +116,16 @@ const FELT252_MAX = FIELD_PRIME - 1n;
 
 /**
  * Generate a cryptographically random felt252 for use as a blinding factor.
+ * Uses rejection sampling to avoid modular bias.
  */
 export function randomFelt252(): Felt252 {
-  // Use starknet.js randomness
-  const privKey = ec.starkCurve.utils.randomPrivateKey();
-  const hexStr = encode.addHexPrefix(encode.buf2hex(privKey));
-  const val = BigInt(hexStr);
+  const maxUnbiased = 2n ** 256n - (2n ** 256n % FELT252_MAX);
+  let val: bigint;
+  do {
+    const privKey = ec.starkCurve.utils.randomPrivateKey();
+    const hexStr = encode.addHexPrefix(encode.buf2hex(privKey));
+    val = BigInt(hexStr);
+  } while (val >= maxUnbiased);
   return val % FELT252_MAX;
 }
 

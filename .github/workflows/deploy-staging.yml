@@ -82,6 +82,21 @@ jobs:
       - name: Build contracts
         run: scarb build
 
+      - name: Validate required secrets
+        run: |
+          missing=0
+          for var in SEPOLIA_RPC_URL SEPOLIA_ACCOUNT SEPOLIA_PRIVATE_KEY; do
+            if [ -z "$(eval echo \$${var})" ]; then
+              echo "ERROR: Secret $var is not set"
+              missing=1
+            fi
+          done
+          if [ $missing -eq 1 ]; then exit 1; fi
+        env:
+          SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
+          SEPOLIA_ACCOUNT: ${{ secrets.SEPOLIA_ACCOUNT }}
+          SEPOLIA_PRIVATE_KEY: ${{ secrets.SEPOLIA_PRIVATE_KEY }}
+
       - name: Deploy to Sepolia
         env:
           STARKNET_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
