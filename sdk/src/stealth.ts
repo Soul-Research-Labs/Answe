@@ -30,10 +30,12 @@ const _sc = ec.starkCurve as any;
  * Uses y² = x³ + α·x + β and the field's sqrt function.
  */
 function liftX(x: bigint): any {
-  const { Fp, CURVE, ProjectivePoint } = _sc;
+  const Fp = _sc.CURVE.Fp;
+  const { a, b } = _sc.CURVE;
+  const { ProjectivePoint } = _sc;
   const x3 = Fp.mul(Fp.mul(x, x), x);
-  const ax = Fp.mul(CURVE.a, x);
-  const y2 = Fp.add(Fp.add(x3, ax), CURVE.b);
+  const ax = Fp.mul(a, x);
+  const y2 = Fp.add(Fp.add(x3, ax), b);
   const y = Fp.sqrt(y2);
   if (y === undefined) {
     throw new Error("Invalid public key: x-coordinate not on Stark curve");

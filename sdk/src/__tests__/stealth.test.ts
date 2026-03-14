@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { deriveStealthAddress, tryScanNote } from "../stealth.js";
 import { KeyManager } from "../keys.js";
-import { poseidonHash2 } from "../crypto.js";
 import { ec, encode } from "starknet";
 
 describe("stealth addresses", () => {
@@ -40,30 +39,54 @@ describe("stealth addresses", () => {
   });
 
   describe("tryScanNote", () => {
-    it("simplified stealth scanning: Poseidon-based shared secret", () => {
-      const viewingKey = 42n;
-      const spendingPubKey = 100n;
-      const ephPubKey = 200n;
+    it("detects a note that belongs to us via real ECDH", () => {
+      const recipient = KeyManager.fromSpendingKey(42n);
+      const meta = makeMetaAddress(recipient);
 
-      // Manually compute expected owner for the "simplified" model
-      const sharedSecret = poseidonHash2(viewingKey, ephPubKey);
-      const expectedOwner = poseidonHash2(sharedSecret, spendingPubKey);
+      // Sender derives a stealth address using real ECDH
+      const stealth = deriveStealthAddress(meta);
 
-      // tryScanNote should detect this note as ours
-      expect(
-        tryScanNote(ephPubKey, viewingKey, spendingPubKey, expectedOwner),
-      ).toBe(true);
+      // Recipient scans: tryScanNote should find a match
+      const found = tryScanNote(
+        stealth.ephemeralPubKey,
+        recipient.viewingKey,
+        meta.spendingPubKey,
+        stealth.ownerHash,
+      );
+      expect(found).toBe(true);
     });
 
     it("rejects notes not belonging to us", () => {
-      const viewingKey = 42n;
-      const spendingPubKey = 100n;
-      const ephPubKey = 200n;
-      const wrongOwner = 9999n;
+      const recipient = KeyManager.fromSpendingKey(42n);
+      const meta = makeMetaAddress(recipient);
 
-      expect(
-        tryScanNote(ephPubKey, viewingKey, spendingPubKey, wrongOwner),
-      ).toBe(false);
+      const stealth = deriveStealthAddress(meta);
+
+      // Wrong owner hash
+      const wrongOwner = 9999n;
+      const found = tryScanNote(
+        stealth.ephemeralPubKey,
+        recipient.viewingKey,
+        meta.spendingPubKey,
+        wrongOwner,
+      );
+      expect(found).toBe(false);
+    });
+
+    it("rejects scan with wrong viewing key", () => {
+      const recipient = KeyManager.fromSpendingKey(42n);
+      const meta = makeMetaAddress(recipient);
+      const stealth = deriveStealthAddress(meta);
+
+      // Different user tries to scan with their own viewing key
+      const other = KeyManager.fromSpendingKey(99n);
+      const found = tryScanNote(
+        stealth.ephemeralPubKey,
+        other.viewingKey,
+        meta.spendingPubKey,
+        stealth.ownerHash,
+      );
+      expect(found).toBe(false);
     });
   });
 });

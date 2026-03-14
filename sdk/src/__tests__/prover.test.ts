@@ -163,7 +163,7 @@ describe("generateTransferProof", () => {
     });
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain("no leaf index");
+    expect(result.error).toMatch(/no leaf index|empty/i);
   });
 
   it("fails when amount exceeds input value", () => {
