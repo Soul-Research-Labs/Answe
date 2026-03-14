@@ -86,7 +86,7 @@
 - [x] Epoch root verified before accepting inbound commitments
 - [x] Commitment replay prevention (`processed_commitments` map)
 - [ ] Cross-chain message ordering guarantees reviewed
-- [ ] Relayer trust assumptions documented and tested
+- [x] Relayer trust assumptions documented and tested (see protocol-spec.md §9.1)
 
 ### 5.3 Kakarot EVM Bridge
 

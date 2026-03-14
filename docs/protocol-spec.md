@@ -269,7 +269,48 @@ to prevent timing-based deanonymisation.
 2. The STARK proof system is computationally sound.
 3. Poseidon hash is collision-resistant over $\mathbb{F}_p$.
 4. The sanctions oracle, if deployed, is operated honestly.
-5. Cross-chain epoch roots are synced by an honest relayer set.
+5. Cross-chain epoch roots are synced by an honest relayer set (see §9.1).
+
+### 9.1 Relayer Trust Model
+
+The **relayer** is an off-chain service that submits ZK-proven transactions
+on behalf of users to preserve sender anonymity. Users never call the
+Starknet sequencer directly — the relayer is the sole `msg.sender`.
+
+#### Properties
+
+| Property | Guarantee | Mechanism |
+|----------|-----------|-----------|
+| **Correctness** | A relayer **cannot** steal funds, forge proofs, or double-spend. | All state transitions are verified by the on-chain proof verifier and nullifier registry. A malicious relayer can only submit well-formed proofs. |
+| **Censorship resistance** | A single relayer **can** censor (refuse to submit) a user's transaction. | Mitigated by allowing multiple independent relayers. Any relayer with the user's signed proof can submit it. |
+| **Privacy** | A relayer learns the proof envelope but **cannot** link sender ↔ recipient beyond what is public on-chain. | Fixed-size envelopes, dummy padding, relay jitter, and batch shuffling (see §8.2). |
+| **Liveness** | A relayer may go offline. | SDK supports relayer failover: `RelayerClient` accepts a list of endpoints and rotates on failure. |
+| **Fee fairness** | A relayer charges a fee taken from the shielded amount. | Fee is encoded in the proof's public inputs and verified on-chain. The relayer cannot inflate it. |
+
+#### Threat: Malicious / Colluding Relayer
+
+- **Selective dropping**: A relayer may silently drop transactions. Users
+  detect this via confirmation timeouts and resubmit through another relayer.
+- **Timing correlation**: A relayer that logs timestamps can attempt to
+  correlate submissions with on-chain inclusion. Relay jitter mitigates this
+  but does not eliminate it against a relayer + sequencer collusion.
+- **Proof resubmission**: A relayer cannot replay a spent proof because
+  nullifiers are marked on-chain. Resubmission of the same proof is harmless.
+- **Cross-chain root relay**: `sync_epoch_root` on the MadaraAdapter and
+  BridgeRouter is callable by any address, but the root is cryptographically
+  committed by the source chain's pool contract. A malicious relayer cannot
+  forge a root — only delay or withhold its relay. Honest-1-of-N suffices.
+
+#### Current Limitations (Pre-Mainnet)
+
+- **No relayer bond or slashing.** A misbehaving relayer faces no economic
+  penalty. Production deployments should introduce a staked relayer registry
+  with slashing for provably-dropped transactions.
+- **No multi-relayer rotation** in the SDK yet — `RelayerClient` connects
+  to one endpoint at a time with manual failover.
+- **No liveness proof.** The protocol does not verify that a relayer is
+  actively serving requests. A future heartbeat or challenge mechanism is
+  recommended.
 
 ---
 
