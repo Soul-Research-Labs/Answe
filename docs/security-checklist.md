@@ -151,7 +151,7 @@
 - [x] Incident response runbook with severity levels and playbooks (`docs/incident-response.md`)
 - [x] CD staging workflow for automated deploy-to-sepolia
 - [ ] Bug bounty program
-- [ ] Production key rotation procedure
+- [x] Production key rotation procedure
 
 ## 10. Testing Coverage
 

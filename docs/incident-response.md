@@ -6,8 +6,9 @@
 2. [Incident Detection](#incident-detection)
 3. [Response Procedures](#response-procedures)
 4. [Scenario Playbooks](#scenario-playbooks)
-5. [Communication Templates](#communication-templates)
-6. [Post-Incident Checklist](#post-incident-checklist)
+5. [Key Rotation Procedures](#key-rotation-procedures)
+6. [Communication Templates](#communication-templates)
+7. [Post-Incident Checklist](#post-incident-checklist)
 
 ---
 
@@ -194,6 +195,188 @@ sncast invoke \
 2. Verify pool state is accessible from backup
 3. Notify users if frontend is affected
 4. Coordinate with RPC provider for resolution
+
+---
+
+## Key Rotation Procedures
+
+### Scheduled Rotation (Non-Emergency)
+
+Rotate keys on a regular cadence (recommended: quarterly) or whenever personnel changes occur.
+
+#### 1. MultiSig Signer Rotation
+
+The governance MultiSig controls owner-level operations (proof verifier upgrades, compliance oracle changes, proxy upgrades).
+
+```bash
+# Step 1: Current signers propose adding the new signer
+sncast invoke \
+  --url $STARKNET_RPC_URL \
+  --account $EXISTING_SIGNER \
+  --contract-address $MULTISIG_ADDRESS \
+  --function submit_transaction \
+  --calldata $MULTISIG_ADDRESS add_signer $NEW_SIGNER_ADDRESS
+
+# Step 2: Collect M-of-N confirmations from existing signers
+sncast invoke \
+  --url $STARKNET_RPC_URL \
+  --account $SIGNER_2 \
+  --contract-address $MULTISIG_ADDRESS \
+  --function confirm_transaction \
+  --calldata $TX_ID
+
+# Step 3: Execute the add-signer transaction
+sncast invoke \
+  --url $STARKNET_RPC_URL \
+  --account $EXISTING_SIGNER \
+  --contract-address $MULTISIG_ADDRESS \
+  --function execute_transaction \
+  --calldata $TX_ID
+
+# Step 4: Remove the old signer via the same propose/confirm/execute flow
+sncast invoke \
+  --url $STARKNET_RPC_URL \
+  --account $EXISTING_SIGNER \
+  --contract-address $MULTISIG_ADDRESS \
+  --function submit_transaction \
+  --calldata $MULTISIG_ADDRESS remove_signer $OLD_SIGNER_ADDRESS
+```
+
+**Verification**:
+```bash
+starkli call $MULTISIG_ADDRESS get_signers --rpc $STARKNET_RPC_URL
+starkli call $MULTISIG_ADDRESS get_threshold --rpc $STARKNET_RPC_URL
+```
+
+#### 2. Operator Key Rotation
+
+The operator can pause/unpause contracts and set fee recipients but cannot modify security-critical parameters.
+
+```bash
+# Owner or current operator sets the new operator
+sncast invoke \
+  --url $STARKNET_RPC_URL \
+  --account $OWNER_ACCOUNT \
+  --contract-address $POOL_ADDRESS \
+  --function set_operator \
+  --calldata $NEW_OPERATOR_ADDRESS
+```
+
+**Verification**:
+```bash
+starkli call $POOL_ADDRESS get_operator --rpc $STARKNET_RPC_URL
+```
+
+#### 3. Proof Verifier Rotation (Owner-Only via Timelock)
+
+Replacing the proof verifier is a high-impact change — it must go through the Timelock.
+
+```bash
+# Step 1: Propose via Timelock
+sncast invoke \
+  --url $STARKNET_RPC_URL \
+  --account $MULTISIG_ADDRESS \
+  --contract-address $TIMELOCK_ADDRESS \
+  --function propose \
+  --calldata $POOL_ADDRESS set_proof_verifier $NEW_VERIFIER_ADDRESS
+
+# Step 2: Wait for Timelock delay to elapse (check configured delay)
+starkli call $TIMELOCK_ADDRESS get_delay --rpc $STARKNET_RPC_URL
+
+# Step 3: Execute after delay
+sncast invoke \
+  --url $STARKNET_RPC_URL \
+  --account $MULTISIG_ADDRESS \
+  --contract-address $TIMELOCK_ADDRESS \
+  --function execute \
+  --calldata $QUEUED_TX_ID
+```
+
+**Verification**:
+```bash
+starkli call $POOL_ADDRESS get_proof_verifier --rpc $STARKNET_RPC_URL
+```
+
+#### 4. Compliance Oracle Rotation (Owner-Only via Timelock)
+
+Same Timelock flow as the proof verifier:
+
+```bash
+sncast invoke \
+  --url $STARKNET_RPC_URL \
+  --account $MULTISIG_ADDRESS \
+  --contract-address $TIMELOCK_ADDRESS \
+  --function propose \
+  --calldata $POOL_ADDRESS set_compliance_oracle $NEW_ORACLE_ADDRESS
+
+# Wait for Timelock delay, then execute
+```
+
+#### 5. Epoch Manager Operator Rotation
+
+```bash
+sncast invoke \
+  --url $STARKNET_RPC_URL \
+  --account $OWNER_ACCOUNT \
+  --contract-address $EPOCH_MANAGER_ADDRESS \
+  --function set_operator \
+  --calldata $NEW_EPOCH_OPERATOR
+```
+
+### Emergency Rotation
+
+Use these procedures when a key is known or suspected compromised (P0/P1).
+
+#### Compromised Operator Key
+
+1. **Immediately** rotate via owner account (bypasses operator):
+   ```bash
+   sncast invoke \
+     --url $STARKNET_RPC_URL \
+     --account $OWNER_ACCOUNT \
+     --contract-address $POOL_ADDRESS \
+     --function set_operator \
+     --calldata $EMERGENCY_OPERATOR_ADDRESS
+   ```
+2. Pause all contracts using the new operator
+3. Investigate scope of compromise (check recent operator-level calls)
+4. Assess whether any unauthorized pause/unpause or fee recipient changes occurred
+
+#### Compromised MultiSig Signer
+
+1. Remaining signers **immediately** propose and execute removal of compromised signer:
+   ```bash
+   sncast invoke \
+     --url $STARKNET_RPC_URL \
+     --account $SAFE_SIGNER \
+     --contract-address $MULTISIG_ADDRESS \
+     --function submit_transaction \
+     --calldata $MULTISIG_ADDRESS remove_signer $COMPROMISED_SIGNER
+   # Collect M-1 confirmations and execute
+   ```
+2. If the compromised signer has pending proposals, cancel them before they reach Timelock execution
+3. Add a replacement signer
+4. Consider increasing the threshold (e.g., 2-of-3 → 3-of-4) if attack surface was wider than expected
+
+#### Full Governance Compromise (Worst Case)
+
+If the MultiSig itself or a majority of signers are compromised:
+
+1. **Pause** all contracts using any available account with pause authority
+2. Communicate publicly that governance is compromised — users should not interact with the protocol
+3. Deploy new governance contracts (MultiSig + Timelock) with fresh signer set
+4. Upgrade proxies to point to new governance (requires current proxy admin — if also compromised, this is unrecoverable on-chain)
+5. Full post-mortem required
+
+### Rotation Checklist
+
+- [ ] New key generated on a hardware wallet / air-gapped device
+- [ ] Old key revoked (removed from MultiSig / replaced as operator)
+- [ ] Verified new key has correct permissions via read-only calls
+- [ ] Team notified of rotation (internal comms)
+- [ ] `scripts/monitor.sh` updated if address constants changed
+- [ ] CI/CD secrets rotated if deployment keys changed
+- [ ] Rotation logged in incident channel with UTC timestamp
 
 ---
 
