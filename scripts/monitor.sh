@@ -70,13 +70,18 @@ alert() {
 # JSON-RPC helper
 rpc_call() {
   local method="$1"
-  shift
-  local params="$*"
+  local params="$2"  # Must be a valid JSON value (object, array, etc.)
+  
+  local payload
+  payload=$(jq -n \
+    --arg method "$method" \
+    --argjson params "$params" \
+    '{jsonrpc: "2.0", method: $method, params: $params, id: 1}')
   
   local response
-  response=$(curl -s -X POST "$RPC_URL" \
+  response=$(curl -s --max-time 10 -X POST "$RPC_URL" \
     -H "Content-Type: application/json" \
-    -d "{\"jsonrpc\":\"2.0\",\"method\":\"$method\",\"params\":[$params],\"id\":1}")
+    -d "$payload")
   
   echo "$response"
 }
@@ -88,27 +93,51 @@ call_view() {
   shift 2
   local calldata="${*:-[]}"
   
-  local request
-  request=$(cat <<EOF
-{
-  "contract_address": "$contract",
-  "entry_point_selector": "$selector",
-  "calldata": $calldata
-}
-EOF
-)
+  local params
+  params=$(jq -n \
+    --arg addr "$contract" \
+    --arg sel "$selector" \
+    --argjson cd "$calldata" \
+    '{request: {contract_address: $addr, entry_point_selector: $sel, calldata: $cd}, block_id: "latest"}')
   
-  rpc_call "starknet_call" "$request, \"latest\""
+  rpc_call "starknet_call" "$params"
 }
 
-# Selector computation via Keccak (pre-computed for known functions)
-# starknet_keccak("get_leaf_count") = 0x...
-# We use starkli to compute or hard-code known selectors
-SELECTOR_GET_LEAF_COUNT="0x019d59575520e977a0e1a21bde4aa4f55c0532eedd69e41522e86967a0597db5"
-SELECTOR_GET_ROOT="0x007bcc55083e32dad37dbe69680c5ea41c380e1f1b3f0e8bcbf65b308a1e0e9e"
-SELECTOR_GET_POOL_BALANCE="0x01096a01f2eaca7f8dff82493f93e1e5e2eb03b0c20f8e0519bc3f38e78aa390"
-SELECTOR_GET_CURRENT_EPOCH="0x0172df3e785c73e34cb5bd6d7c41c1ad7d9ec48e5c0e5e1c5c62b2487cfcb24f"
-SELECTOR_IS_PAUSED="0x0069e6e01d93add50dc4a5f70ab2e0c29b9c9ec6f843cf6ad1fd7f0c6f28f1bf"
+# Compute a Starknet function selector via starkli, with fallback to hardcoded values.
+compute_selector() {
+  local func_name="$1"
+  # Try starkli first (most accurate)
+  if command -v starkli &>/dev/null; then
+    local sel
+    sel=$(starkli selector "$func_name" 2>/dev/null || echo "")
+    if [[ -n "$sel" ]]; then
+      echo "$sel"
+      return
+    fi
+  fi
+  # Fallback: use Python + hashlib (sn_keccak = keccak256 truncated to 250 bits)
+  if command -v python3 &>/dev/null; then
+    python3 -c "
+import hashlib
+h = int.from_bytes(hashlib.sha3_256(b'$func_name').digest(), 'big')
+h = h & ((1 << 250) - 1)
+print(hex(h))
+" 2>/dev/null && return
+  fi
+  # Last resort: fail loudly
+  log "ERROR" "Cannot compute selector for '$func_name' — install starkli or python3"
+  echo "0x0"
+}
+
+# Selector computation: starknet_keccak (sn_keccak) of function name.
+# These are computed via: python3 -c "from starkware.starknet.public.abi import starknet_keccak; print(hex(starknet_keccak(b'<name>')))"
+# or equivalently: echo -n "<name>" | starkli selector
+# Selectors are the sn_keccak of the ASCII function name, truncated to 250 bits.
+SELECTOR_GET_LEAF_COUNT=$(compute_selector "get_leaf_count")
+SELECTOR_GET_ROOT=$(compute_selector "get_root")
+SELECTOR_GET_POOL_BALANCE=$(compute_selector "get_pool_balance")
+SELECTOR_GET_CURRENT_EPOCH=$(compute_selector "get_current_epoch")
+SELECTOR_IS_PAUSED=$(compute_selector "is_paused")
 
 # ─── State Management ────────────────────────────────────────
 
@@ -145,7 +174,7 @@ check_pool_health() {
   leaf_response=$(call_view "$POOL" "$SELECTOR_GET_LEAF_COUNT")
   local leaf_count
   leaf_count=$(echo "$leaf_response" | jq -r '.result[0] // "0x0"')
-  leaf_count=$((leaf_count))  # hex to decimal
+  leaf_count=$(printf '%d' "$leaf_count" 2>/dev/null || echo 0)
   log "INFO" "Leaf count: $leaf_count (previous: $prev_leaf_count)"
 
   # 2. Check for abnormal growth (>100 deposits in one interval)
@@ -171,9 +200,9 @@ check_pool_health() {
   # 5. Balance should never decrease unless a withdrawal happened
   # (We can't distinguish here, so just log it as a warning)
   local balance_dec
-  balance_dec=$((balance))
+  balance_dec=$(printf '%d' "$balance" 2>/dev/null || echo 0)
   local prev_balance_dec
-  prev_balance_dec=$((prev_balance))
+  prev_balance_dec=$(printf '%d' "$prev_balance" 2>/dev/null || echo 0)
   if [[ $balance_dec -lt $prev_balance_dec && $prev_balance_dec -gt 0 ]]; then
     local diff=$((prev_balance_dec - balance_dec))
     log "WARN" "Pool balance decreased by $diff (was $prev_balance_dec, now $balance_dec)"
@@ -221,7 +250,7 @@ check_epoch_health() {
   epoch_response=$(call_view "$EPOCH_MGR" "$SELECTOR_GET_CURRENT_EPOCH")
   local epoch
   epoch=$(echo "$epoch_response" | jq -r '.result[0] // "0x0"')
-  epoch=$((epoch))
+  epoch=$(printf '%d' "$epoch" 2>/dev/null || echo 0)
   log "INFO" "Current epoch: $epoch (previous: $prev_epoch)"
 
   # Epoch should never decrease
