@@ -83,6 +83,13 @@ pub trait IPrivacyPool<TContractState> {
 
     /// Update the compliance oracle address (owner only).
     fn set_compliance_oracle(ref self: TContractState, oracle: ContractAddress);
+
+    /// Get the current operator address.
+    fn get_operator(self: @TContractState) -> ContractAddress;
+
+    /// Set the operator address (owner only). The operator can pause/unpause
+    /// and update the fee recipient without full owner privileges.
+    fn set_operator(ref self: TContractState, operator: ContractAddress);
 }
 
 #[starknet::contract]
@@ -139,6 +146,7 @@ pub mod PrivacyPool {
         chain_id: felt252,
         app_id: felt252,
         owner: ContractAddress,
+        operator: ContractAddress,
         proof_verifier: ContractAddress,
         fee_recipient: ContractAddress,
         paused: bool,
@@ -163,6 +171,7 @@ pub mod PrivacyPool {
         FeeRecipientUpdated: FeeRecipientUpdated,
         ProofVerifierUpdated: ProofVerifierUpdated,
         ComplianceOracleUpdated: ComplianceOracleUpdated,
+        OperatorUpdated: OperatorUpdated,
         #[flat]
         ReentrancyGuardEvent: ReentrancyGuard::Event,
         #[flat]
@@ -232,6 +241,12 @@ pub mod PrivacyPool {
     pub struct ComplianceOracleUpdated {
         pub old_oracle: ContractAddress,
         pub new_oracle: ContractAddress,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct OperatorUpdated {
+        pub old_operator: ContractAddress,
+        pub new_operator: ContractAddress,
     }
 
     #[constructor]
@@ -503,21 +518,21 @@ pub mod PrivacyPool {
         }
 
         fn pause(ref self: ContractState) {
-            self._assert_owner();
+            self._assert_operator_or_owner();
             assert!(!self.paused.read(), "already paused");
             self.paused.write(true);
             self.emit(Paused { by: get_caller_address() });
         }
 
         fn unpause(ref self: ContractState) {
-            self._assert_owner();
+            self._assert_operator_or_owner();
             assert!(self.paused.read(), "not paused");
             self.paused.write(false);
             self.emit(Unpaused { by: get_caller_address() });
         }
 
         fn set_fee_recipient(ref self: ContractState, recipient: ContractAddress) {
-            self._assert_owner();
+            self._assert_operator_or_owner();
             let old = self.fee_recipient.read();
             self.fee_recipient.write(recipient);
             self.emit(FeeRecipientUpdated { old_recipient: old, new_recipient: recipient });
@@ -536,6 +551,17 @@ pub mod PrivacyPool {
             self.compliance_oracle.write(oracle);
             self.emit(ComplianceOracleUpdated { old_oracle: old, new_oracle: oracle });
         }
+
+        fn get_operator(self: @ContractState) -> ContractAddress {
+            self.operator.read()
+        }
+
+        fn set_operator(ref self: ContractState, operator: ContractAddress) {
+            self._assert_owner();
+            let old = self.operator.read();
+            self.operator.write(operator);
+            self.emit(OperatorUpdated { old_operator: old, new_operator: operator });
+        }
     }
 
     // -- Internal functions --
@@ -545,6 +571,16 @@ pub mod PrivacyPool {
         fn _assert_owner(self: @ContractState) {
             let caller = get_caller_address();
             assert!(caller == self.owner.read(), "caller is not owner");
+        }
+
+        /// Assert the caller is the owner or the operator.
+        fn _assert_operator_or_owner(self: @ContractState) {
+            let caller = get_caller_address();
+            let is_owner = caller == self.owner.read();
+            let operator_addr = self.operator.read();
+            let zero_addr: ContractAddress = 0.try_into().unwrap();
+            let is_operator = operator_addr != zero_addr && caller == operator_addr;
+            assert!(is_owner || is_operator, "caller is not owner or operator");
         }
 
         /// Assert the pool is not paused.
