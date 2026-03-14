@@ -86,7 +86,11 @@
 - [x] Uses `send_message_to_l1_syscall` (Starknet native messaging)
 - [x] L1 recipient validated (non-zero)
 - [x] Amount validation on deposit/withdraw
-- [ ] L1 contract counterpart audit (Solidity side)
+- [x] L1 contract counterpart implemented (`contracts/evm/StarkPrivacyBridge.sol`)
+  - Replay protection via `consumeMessageFromL2` (Starknet core consumes once)
+  - Emergency pause with owner-only access
+  - Withdrawal uses low-level call to prevent reentrancy (no state after transfer)
+  - Pending: Foundry/Hardhat test suite and audit
 
 ### 5.2 Madara Appchain
 
