@@ -460,12 +460,12 @@ The application layer does **not** validate FRI parameters directly — it trust
 
 #### Pre-Mainnet Checklist
 
-- [ ] Confirm stone-prover / S-Two FRI blowup ≥ 4
-- [ ] Confirm FRI query count yields ≥ 128-bit security
-- [ ] Confirm grinding factor ≥ 20 bits
-- [ ] Run proof verification against StarkVerifier (not MockVerifier) on Sepolia
-- [ ] Measure proof generation time and size across representative circuits
-- [ ] Verify Poseidon instantiation matches Starknet reference (same round constants, MDS matrix)
+- [ ] Confirm stone-prover / S-Two FRI blowup ≥ 4 _(requires prover config review)_
+- [ ] Confirm FRI query count yields ≥ 128-bit security _(requires prover config review)_
+- [ ] Confirm grinding factor ≥ 20 bits _(requires prover config review)_
+- [ ] Run proof verification against StarkVerifier (not MockVerifier) on Sepolia _(Sepolia deployment runbook: `docs/sepolia-deployment-runbook.md`)_
+- [ ] Measure proof generation time and size across representative circuits _(SDK `prover.ts` `generateTransferProofAsync`/`generateWithdrawProofAsync` wired and tested)_
+- [ ] Verify Poseidon instantiation matches Starknet reference (same round constants, MDS matrix) _(contracts use `poseidon_hash_span` from core lib — matches by construction)_
 
 ---
 

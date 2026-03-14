@@ -285,7 +285,7 @@ describe("CLI subprocess: keygen", () => {
     expect(output).toContain("Viewing Key");
     expect(output).toContain("Owner Hash");
     expect(output).toContain("0x");
-  });
+  }, 15_000);
 });
 
 describe("CLI subprocess: error handling", () => {

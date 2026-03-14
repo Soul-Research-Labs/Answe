@@ -3,6 +3,7 @@
 ## Pre-Flight Checklist
 
 ### Build Verification
+
 - [ ] `scarb build` succeeds with zero warnings
 - [ ] `snforge test` — all Cairo tests pass (currently 233)
 - [ ] `npx tsc --noEmit` — SDK compiles cleanly
@@ -10,12 +11,14 @@
 - [ ] CI pipeline green on `main` branch
 
 ### Account Setup
+
 - [ ] Deployer account created: `sncast account create --url $RPC_URL --name deployer`
 - [ ] Deployer account deployed: `sncast account deploy --url $RPC_URL --name deployer --max-fee 0.01`
 - [ ] Deployer account funded with ≥0.5 ETH on Sepolia
 - [ ] Deployer address exported: `export STARKNET_ACCOUNT=deployer`
 
 ### MultiSig Signers
+
 - [ ] Three distinct signer addresses generated (NEVER reuse deployer for all three in production)
 - [ ] `MULTISIG_SIGNER_1` exported — Signer 1 address
 - [ ] `MULTISIG_SIGNER_2` exported — Signer 2 address
@@ -23,6 +26,7 @@
 - [ ] Each signer has a funded Starknet account (for governance transactions)
 
 ### Environment Variables
+
 ```bash
 export STARKNET_RPC_URL="https://starknet-sepolia.public.blastapi.io/rpc/v0_7"
 export STARKNET_ACCOUNT="deployer"
@@ -36,22 +40,27 @@ export MULTISIG_SIGNER_3="0x..."
 ## Deployment
 
 ### Step 1: Deploy All Contracts
+
 ```bash
 ./scripts/deploy.sh --network sepolia
 ```
 
 **Expected output:**
+
 - 11 contracts declared and deployed
 - Deployment manifest written to `scripts/deployments-sepolia.json`
 - Post-deployment verification shows all contracts responding
 
 ### Step 2: Verify Deployment Manifest
+
 ```bash
 cat scripts/deployments-sepolia.json | python3 -m json.tool
 ```
+
 Confirm all contract addresses are non-zero and class hashes are present.
 
 ### Step 3: Verify Contract Responses
+
 ```bash
 # Check pool root
 sncast --account deployer --url $STARKNET_RPC_URL \
@@ -69,6 +78,7 @@ sncast --account deployer --url $STARKNET_RPC_URL \
 ## Post-Deployment Governance Setup
 
 ### Step 4: Run Governance Setup Script
+
 ```bash
 # If using separate signer accounts:
 export MULTISIG_SIGNER_1_ACCOUNT="signer1"
@@ -78,6 +88,7 @@ export MULTISIG_SIGNER_2_ACCOUNT="signer2"
 ```
 
 This script:
+
 1. Sets the MultiSig timelock (requires 2-of-3 signer approval)
 2. Transfers PrivacyPool ownership → Timelock
 3. Transfers EpochManager ownership → Timelock
@@ -85,6 +96,7 @@ This script:
 5. Verifies all ownership transfers
 
 ### Step 5: Verify Governance Chain
+
 ```bash
 POOL=$(jq -r '.contracts.PrivacyPool.address' scripts/deployments-sepolia.json)
 TIMELOCK=$(jq -r '.contracts.Timelock.address' scripts/deployments-sepolia.json)
@@ -102,6 +114,7 @@ sncast call --contract-address $MULTISIG --function get_timelock --url $STARKNET
 ## SDK Configuration
 
 ### Step 6: Configure SDK for Sepolia
+
 ```typescript
 import { StarkPrivacyClient, createProver } from "@starkprivacy/sdk";
 
@@ -127,6 +140,7 @@ const client = StarkPrivacyClient.fromSpendingKey(
 ```
 
 ### Step 7: Test E2E Flow
+
 ```bash
 # Generate keys
 npx starkprivacy keygen
@@ -149,6 +163,7 @@ npx starkprivacy balance \
 ## Relayer Setup
 
 ### Step 8: Fund Relayer Account
+
 ```bash
 # Create relayer account
 sncast account create --url $STARKNET_RPC_URL --name relayer
@@ -158,6 +173,7 @@ sncast account deploy --url $STARKNET_RPC_URL --name relayer --max-fee 0.01
 ```
 
 ### Step 9: Configure Relayer
+
 ```typescript
 import { Relayer, SqliteJobStorage } from "@starkprivacy/sdk";
 
@@ -180,6 +196,7 @@ const relayer = new Relayer({
 ## Monitoring Setup
 
 ### Step 10: Start Monitor
+
 ```bash
 export POOL_ADDRESS=$(jq -r '.contracts.PrivacyPool.address' scripts/deployments-sepolia.json)
 export RPC_URL="https://starknet-sepolia.public.blastapi.io/rpc/v0_7"
@@ -207,6 +224,7 @@ export RPC_URL="https://starknet-sepolia.public.blastapi.io/rpc/v0_7"
 ## Rollback Procedure
 
 If critical issues are found post-deployment:
+
 1. **Pause the pool:** MultiSig → propose `pause()` on PrivacyPool → approve → forward
 2. **Emergency pause:** If deployer still has emergency_governor role on Proxy, call `pause()` directly
 3. **Do NOT upgrade** without thorough testing on a fresh devnet

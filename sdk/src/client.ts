@@ -191,9 +191,10 @@ export class StarkPrivacyClient {
       appId: this.config.appId,
       tree: this.tree,
     };
-    const result = this.prover.name === "local-mvp"
-      ? generateTransferProof(proofInput)
-      : await generateTransferProofAsync(proofInput, this.prover);
+    const result =
+      this.prover.name === "local-mvp"
+        ? generateTransferProof(proofInput)
+        : await generateTransferProofAsync(proofInput, this.prover);
 
     if (!result.success || !result.proof) {
       throw new Error(`Proof generation failed: ${result.error}`);
@@ -266,9 +267,10 @@ export class StarkPrivacyClient {
       appId: this.config.appId,
       tree: this.tree,
     };
-    const result = this.prover.name === "local-mvp"
-      ? generateWithdrawProof(proofInput)
-      : await generateWithdrawProofAsync(proofInput, this.prover);
+    const result =
+      this.prover.name === "local-mvp"
+        ? generateWithdrawProof(proofInput)
+        : await generateWithdrawProofAsync(proofInput, this.prover);
 
     if (!result.success || !result.proof) {
       throw new Error(`Proof generation failed: ${result.error}`);

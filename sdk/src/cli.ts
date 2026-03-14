@@ -466,7 +466,9 @@ async function cmdVerifyBackup(
 
 // ─── Verify Deployment ───────────────────────────────────────────
 
-async function cmdVerifyDeployment(flags: Record<string, string>): Promise<void> {
+async function cmdVerifyDeployment(
+  flags: Record<string, string>,
+): Promise<void> {
   const rpc = flags.rpc || "http://localhost:5050";
   const poolAddr = flags.pool;
 
@@ -487,28 +489,56 @@ async function cmdVerifyDeployment(flags: Record<string, string>): Promise<void>
   try {
     const pool = new Contract(PRIVACY_POOL_ABI as any, poolAddr, provider);
     const root = await pool.call("get_root");
-    checks.push({ name: "PrivacyPool.get_root()", ok: true, detail: `root=${root}` });
+    checks.push({
+      name: "PrivacyPool.get_root()",
+      ok: true,
+      detail: `root=${root}`,
+    });
   } catch (e: any) {
-    checks.push({ name: "PrivacyPool.get_root()", ok: false, detail: e.message });
+    checks.push({
+      name: "PrivacyPool.get_root()",
+      ok: false,
+      detail: e.message,
+    });
   }
 
   try {
     const pool = new Contract(PRIVACY_POOL_ABI as any, poolAddr, provider);
     const count = await pool.call("get_leaf_count");
-    checks.push({ name: "PrivacyPool.get_leaf_count()", ok: true, detail: `leaves=${count}` });
+    checks.push({
+      name: "PrivacyPool.get_leaf_count()",
+      ok: true,
+      detail: `leaves=${count}`,
+    });
   } catch (e: any) {
-    checks.push({ name: "PrivacyPool.get_leaf_count()", ok: false, detail: e.message });
+    checks.push({
+      name: "PrivacyPool.get_leaf_count()",
+      ok: false,
+      detail: e.message,
+    });
   }
 
   // Check stealth registry if provided
   if (flags.stealth) {
     try {
       const { STEALTH_REGISTRY_ABI } = await import("./types.js");
-      const reg = new Contract(STEALTH_REGISTRY_ABI as any, flags.stealth, provider);
+      const reg = new Contract(
+        STEALTH_REGISTRY_ABI as any,
+        flags.stealth,
+        provider,
+      );
       const count = await reg.call("get_ephemeral_count");
-      checks.push({ name: "StealthRegistry.get_ephemeral_count()", ok: true, detail: `count=${count}` });
+      checks.push({
+        name: "StealthRegistry.get_ephemeral_count()",
+        ok: true,
+        detail: `count=${count}`,
+      });
     } catch (e: any) {
-      checks.push({ name: "StealthRegistry.get_ephemeral_count()", ok: false, detail: e.message });
+      checks.push({
+        name: "StealthRegistry.get_ephemeral_count()",
+        ok: false,
+        detail: e.message,
+      });
     }
   }
 
@@ -516,11 +546,23 @@ async function cmdVerifyDeployment(flags: Record<string, string>): Promise<void>
   if (flags.epochs) {
     try {
       const { EPOCH_MANAGER_ABI } = await import("./types.js");
-      const epoch = new Contract(EPOCH_MANAGER_ABI as any, flags.epochs, provider);
+      const epoch = new Contract(
+        EPOCH_MANAGER_ABI as any,
+        flags.epochs,
+        provider,
+      );
       const current = await epoch.call("get_current_epoch");
-      checks.push({ name: "EpochManager.get_current_epoch()", ok: true, detail: `epoch=${current}` });
+      checks.push({
+        name: "EpochManager.get_current_epoch()",
+        ok: true,
+        detail: `epoch=${current}`,
+      });
     } catch (e: any) {
-      checks.push({ name: "EpochManager.get_current_epoch()", ok: false, detail: e.message });
+      checks.push({
+        name: "EpochManager.get_current_epoch()",
+        ok: false,
+        detail: e.message,
+      });
     }
   }
 

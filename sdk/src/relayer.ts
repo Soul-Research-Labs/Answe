@@ -231,6 +231,59 @@ export class Relayer {
     return toRetry.length;
   }
 
+  /**
+   * Sweep stale jobs that have been stuck in "submitted" state
+   * beyond a configurable threshold. These jobs may have timed out
+   * during confirmation polling. Marks them as "failed" so they
+   * don't silently block the queue.
+   *
+   * @param maxAgeMs - Maximum age in ms for a "submitted" job (default: 5 minutes).
+   * @returns Number of jobs marked as failed.
+   */
+  async sweepStale(maxAgeMs: number = 300_000): Promise<number> {
+    const submitted = await this.storage.loadAll("submitted");
+    const now = Date.now();
+    let swept = 0;
+
+    for (const job of submitted) {
+      if (now - job.updatedAt > maxAgeMs) {
+        job.status = "failed";
+        job.error = `Stale: stuck in submitted state for >${Math.round(maxAgeMs / 1000)}s${job.txHash ? ` (txHash: ${job.txHash})` : ""}`;
+        job.updatedAt = now;
+        await this.storage.save(job);
+        swept++;
+      }
+    }
+
+    return swept;
+  }
+
+  /**
+   * Get aggregate statistics for all relayer jobs.
+   */
+  async getStats(): Promise<{
+    pending: number;
+    submitted: number;
+    confirmed: number;
+    failed: number;
+    total: number;
+  }> {
+    const all = await this.storage.loadAll();
+    const stats = {
+      pending: 0,
+      submitted: 0,
+      confirmed: 0,
+      failed: 0,
+      total: all.length,
+    };
+    for (const job of all) {
+      if (job.status in stats) {
+        stats[job.status as keyof Omit<typeof stats, "total">]++;
+      }
+    }
+    return stats;
+  }
+
   // ─── Validation ──────────────────────────────────────────────
 
   private async validate(proof: ProofRequest): Promise<string | null> {

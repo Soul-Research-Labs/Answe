@@ -313,3 +313,100 @@ describe("Relayer recovery", () => {
     expect(count).toBe(2); // only pending + submitted
   });
 });
+
+// ─── sweepStale ──────────────────────────────────────────────────
+describe("sweepStale", () => {
+  it("marks stale submitted jobs as failed", async () => {
+    const storage = new InMemoryJobStorage();
+    const now = Date.now();
+
+    // Stale submitted job (updated 10 minutes ago)
+    await storage.save({
+      id: "relay_0",
+      proof: validProof(),
+      status: "submitted",
+      retries: 1,
+      createdAt: now - 600_000,
+      updatedAt: now - 600_000,
+      txHash: "0xabc",
+    });
+    // Fresh submitted job (just now)
+    await storage.save({
+      id: "relay_1",
+      proof: validProof({ nullifiers: [0x30n, 0x40n] }),
+      status: "submitted",
+      retries: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+    // A pending job (should be untouched)
+    await storage.save({
+      id: "relay_2",
+      proof: validProof({ nullifiers: [0x50n, 0x60n] }),
+      status: "pending",
+      retries: 0,
+      createdAt: now - 600_000,
+      updatedAt: now - 600_000,
+    });
+
+    const relayer = new Relayer({ ...CONFIG, storage });
+    const swept = await relayer.sweepStale(300_000); // 5 min threshold
+    expect(swept).toBe(1);
+
+    const staleJob = await storage.load("relay_0");
+    expect(staleJob?.status).toBe("failed");
+    expect(staleJob?.error).toContain("Stale");
+    expect(staleJob?.error).toContain("0xabc");
+
+    // Fresh submitted job untouched
+    const freshJob = await storage.load("relay_1");
+    expect(freshJob?.status).toBe("submitted");
+
+    // Pending job untouched
+    const pendingJob = await storage.load("relay_2");
+    expect(pendingJob?.status).toBe("pending");
+  });
+
+  it("returns 0 when no stale jobs exist", async () => {
+    const storage = new InMemoryJobStorage();
+    const relayer = new Relayer({ ...CONFIG, storage });
+    const swept = await relayer.sweepStale();
+    expect(swept).toBe(0);
+  });
+});
+
+// ─── getStats ────────────────────────────────────────────────────
+describe("getStats", () => {
+  it("returns correct counts per status", async () => {
+    const storage = new InMemoryJobStorage();
+    const now = Date.now();
+    const mkJob = (id: string, status: string) => ({
+      id,
+      proof: validProof({
+        nullifiers: [BigInt(parseInt(id.slice(-1)) * 2 + 1)],
+      }),
+      status: status as any,
+      retries: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await storage.save(mkJob("relay_0", "pending"));
+    await storage.save(mkJob("relay_1", "submitted"));
+    await storage.save(mkJob("relay_2", "submitted"));
+    await storage.save(mkJob("relay_3", "confirmed"));
+    await storage.save(mkJob("relay_4", "confirmed"));
+    await storage.save(mkJob("relay_5", "confirmed"));
+    await storage.save(mkJob("relay_6", "failed"));
+
+    const relayer = new Relayer({ ...CONFIG, storage });
+    const stats = await relayer.getStats();
+    expect(stats).toEqual({
+      pending: 1,
+      submitted: 2,
+      confirmed: 3,
+      failed: 1,
+      total: 7,
+    });
+  });
+});
