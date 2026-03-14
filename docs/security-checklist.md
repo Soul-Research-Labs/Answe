@@ -120,14 +120,14 @@
 - [x] Note values never appear in public inputs
 - [x] Spending keys never appear in public inputs
 - [x] Only nullifiers and commitments published on-chain
-- [ ] Information-theoretic analysis of nullifier leakage
+- [x] Information-theoretic analysis of nullifier leakage (see protocol-spec.md §9.3.1)
 
 ### 6.2 Metadata Resistance
 
 - [x] Fixed-size 64-felt envelopes (no payload length leakage)
 - [x] Dummy envelope padding in batches
 - [x] Relay jitter (uniform random delay before submission)
-- [ ] Traffic analysis resistance under realistic network model
+- [x] Traffic analysis resistance under realistic network model (see protocol-spec.md §9.3.2)
 
 ### 6.3 Stealth Addresses
 
@@ -135,7 +135,7 @@
 - [x] Shared secret derived via Poseidon (not plain DH)
 - [x] Scan tag per-epoch (limits scanning window)
 - [x] Note payload encrypted with shared secret
-- [ ] Key leakage impact analysis
+- [x] Key leakage impact analysis (see protocol-spec.md §9.3.3)
 
 ## 7. SDK Security
 
