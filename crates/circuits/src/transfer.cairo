@@ -122,7 +122,15 @@ pub fn verify_transfer(
     let total_out: u128 = ov0 + ov1 + *public.fee;
     assert!(total_in == total_out, "balance not conserved");
 
-    // ── 7. Owner verification ────────────────────────────────────
+    // ── 7. Asset consistency ─────────────────────────────────────
+    // All input and output notes must reference the same asset_id.
+    // Without this, a malicious prover could mix value across asset types.
+    let asset = (*witness.input_note_0).asset_id;
+    assert!((*witness.input_note_1).asset_id == asset, "input asset mismatch");
+    assert!((*witness.output_note_0).asset_id == asset, "output 0 asset mismatch");
+    assert!((*witness.output_note_1).asset_id == asset, "output 1 asset mismatch");
+
+    // ── 8. Owner verification ────────────────────────────────────
     // Both input notes must be owned by the spending key
     let owner_hash = poseidon_hash_2(*witness.spending_key, 0);
     assert!((*witness.input_note_0).owner == owner_hash, "input 0 not owned by spender");
@@ -361,5 +369,78 @@ mod tests {
         };
         verify_transfer(@public, @witness);
     }
-}
 
+    #[test]
+    #[should_panic(expected: "input asset mismatch")]
+    fn test_transfer_mixed_assets_rejected() {
+        let sk: felt252 = 0xABCD;
+        let owner = make_owner(sk);
+        let chain_id: felt252 = 'SN_SEPOLIA';
+        let app_id: felt252 = 'STARKPRIVACY';
+
+        // Input notes with different asset_ids
+        let note0 = Note { owner, value: 100, asset_id: 0, blinding: 0x1111 };
+        let note1 = Note { owner, value: 200, asset_id: 1, blinding: 0x2222 };
+        let cm0 = compute_note_commitment(@note0);
+        let cm1 = compute_note_commitment(@note1);
+        let (root, path0, path1) = build_two_leaf_tree(cm0, cm1);
+
+        let out0 = Note { owner: 0xBEEF, value: 150, asset_id: 0, blinding: 0x3333 };
+        let out1 = Note { owner: 0xCAFE, value: 150, asset_id: 0, blinding: 0x4444 };
+        let oc0 = compute_note_commitment(@out0);
+        let oc1 = compute_note_commitment(@out1);
+        let nf0 = compute_nullifier_v2(sk, cm0, chain_id, app_id);
+        let nf1 = compute_nullifier_v2(sk, cm1, chain_id, app_id);
+
+        let public = TransferPublicInputs {
+            merkle_root: root, nullifier_0: nf0, nullifier_1: nf1,
+            output_commitment_0: oc0, output_commitment_1: oc1,
+            fee: 0, chain_id, app_id,
+        };
+        let witness = TransferWitness {
+            spending_key: sk,
+            input_note_0: note0, input_note_1: note1,
+            merkle_path_0: path0.span(), leaf_index_0: 0,
+            merkle_path_1: path1.span(), leaf_index_1: 1,
+            output_note_0: out0, output_note_1: out1,
+        };
+        verify_transfer(@public, @witness);
+    }
+
+    #[test]
+    #[should_panic(expected: "output 0 asset mismatch")]
+    fn test_transfer_output_asset_mismatch_rejected() {
+        let sk: felt252 = 0xABCD;
+        let owner = make_owner(sk);
+        let chain_id: felt252 = 'SN_SEPOLIA';
+        let app_id: felt252 = 'STARKPRIVACY';
+
+        let note0 = Note { owner, value: 100, asset_id: 0, blinding: 0x1111 };
+        let note1 = Note { owner, value: 200, asset_id: 0, blinding: 0x2222 };
+        let cm0 = compute_note_commitment(@note0);
+        let cm1 = compute_note_commitment(@note1);
+        let (root, path0, path1) = build_two_leaf_tree(cm0, cm1);
+
+        // Output note 0 has a different asset_id than inputs
+        let out0 = Note { owner: 0xBEEF, value: 150, asset_id: 1, blinding: 0x3333 };
+        let out1 = Note { owner: 0xCAFE, value: 150, asset_id: 0, blinding: 0x4444 };
+        let oc0 = compute_note_commitment(@out0);
+        let oc1 = compute_note_commitment(@out1);
+        let nf0 = compute_nullifier_v2(sk, cm0, chain_id, app_id);
+        let nf1 = compute_nullifier_v2(sk, cm1, chain_id, app_id);
+
+        let public = TransferPublicInputs {
+            merkle_root: root, nullifier_0: nf0, nullifier_1: nf1,
+            output_commitment_0: oc0, output_commitment_1: oc1,
+            fee: 0, chain_id, app_id,
+        };
+        let witness = TransferWitness {
+            spending_key: sk,
+            input_note_0: note0, input_note_1: note1,
+            merkle_path_0: path0.span(), leaf_index_0: 0,
+            merkle_path_1: path1.span(), leaf_index_1: 1,
+            output_note_0: out0, output_note_1: out1,
+        };
+        verify_transfer(@public, @witness);
+    }
+}

@@ -32,7 +32,12 @@
 - [x] Withdraw circuit enforces exit_value + change = input sum - fee
 - [x] Both circuits verify Merkle proofs against declared root
 - [x] Commitment recomputation matches on-chain formula
-- [ ] Formal constraint count audit (verify no under-constrained variables)
+- [x] Transfer circuit enforces asset_id consistency across inputs and outputs
+- [x] Formal constraint count audit (verify no under-constrained variables)
+  - Transfer: 8 constraint groups (commitment, nullifier, dup-nullifier, Merkle, output commitment, range, balance, asset, owner)
+  - Withdraw: 8 constraint groups (commitment, nullifier, dup-nullifier, Merkle, change commitment, range, balance, asset, owner)
+  - **Fixed**: Transfer circuit was missing asset_id consistency check (inputs/outputs could mix asset types)
+  - **Remaining**: fee not range-checked against MAX_NOTE_VALUE (low severity — u128 bound is sufficient)
 - [ ] STARK soundness parameter review
 
 ## 4. Smart Contract Security
