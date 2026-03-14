@@ -44,7 +44,10 @@ contract MockStarknetMessaging is IStarknetMessaging {
     }
 
     // Test helpers
-    function addConsumableMessage(uint256 fromAddress, uint256[] calldata payload) external {
+    function addConsumableMessage(
+        uint256 fromAddress,
+        uint256[] calldata payload
+    ) external {
         bytes32 msgHash = keccak256(abi.encode(fromAddress, payload));
         consumableMessages[msgHash] = true;
     }
@@ -68,11 +71,25 @@ contract StarkPrivacyBridgeTest {
     uint256 public constant COMMITMENT = 0xDEAD;
 
     // Foundry test events
-    event Deposit(uint256 indexed commitment, uint256 amount, uint256 assetId, uint256 depositIndex);
-    event Withdrawal(uint256 indexed commitment, address indexed recipient, uint256 amount, uint256 assetId, uint256 withdrawIndex);
+    event Deposit(
+        uint256 indexed commitment,
+        uint256 amount,
+        uint256 assetId,
+        uint256 depositIndex
+    );
+    event Withdrawal(
+        uint256 indexed commitment,
+        address indexed recipient,
+        uint256 amount,
+        uint256 assetId,
+        uint256 withdrawIndex
+    );
     event Paused(address indexed caller);
     event Unpaused(address indexed caller);
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event OwnershipTransferred(
+        address indexed previousOwner,
+        address indexed newOwner
+    );
 
     function setUp() public {
         mockMessaging = new MockStarknetMessaging();
@@ -101,7 +118,13 @@ contract StarkPrivacyBridgeTest {
     }
 
     function testConstructorRevertsZeroOwner() public {
-        try new StarkPrivacyBridge(address(mockMessaging), L2_BRIDGE, address(0)) {
+        try
+            new StarkPrivacyBridge(
+                address(mockMessaging),
+                L2_BRIDGE,
+                address(0)
+            )
+        {
             revert("expected revert");
         } catch {}
     }
@@ -262,7 +285,12 @@ contract StarkPrivacyBridgeTest {
     }
 
     function testTransferOwnershipRevertsZeroAddress() public {
-        _callAsOwner(abi.encodeWithSelector(bridge.transferOwnership.selector, address(0)));
+        _callAsOwner(
+            abi.encodeWithSelector(
+                bridge.transferOwnership.selector,
+                address(0)
+            )
+        );
         // Should have reverted — owner unchanged
         assert(bridge.owner() == owner);
     }
@@ -278,7 +306,11 @@ contract StarkPrivacyBridgeTest {
 
     // ─── Helpers ────────────────────────────────────
 
-    function _deposit(uint256 commitment, uint256 assetId, uint256 amount) internal {
+    function _deposit(
+        uint256 commitment,
+        uint256 assetId,
+        uint256 amount
+    ) internal {
         // Call as user with value
         (bool ok, ) = address(bridge).call{value: amount}(
             abi.encodeWithSelector(bridge.deposit.selector, commitment, assetId)
@@ -310,7 +342,9 @@ contract StarkPrivacyBridgeTest {
     }
 
     function _transferOwnershipAsOwner(address newOwner) internal {
-        _callAsOwner(abi.encodeWithSelector(bridge.transferOwnership.selector, newOwner));
+        _callAsOwner(
+            abi.encodeWithSelector(bridge.transferOwnership.selector, newOwner)
+        );
     }
 
     function _callAsOwner(bytes memory data) internal {

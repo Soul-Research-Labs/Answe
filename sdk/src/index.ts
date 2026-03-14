@@ -31,6 +31,8 @@ export {
   ClientMerkleTree,
   generateTransferProof,
   generateWithdrawProof,
+  generateTransferProofAsync,
+  generateWithdrawProofAsync,
   type TransferProofInput,
   type WithdrawProofInput,
 } from "./prover.js";

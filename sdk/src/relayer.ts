@@ -179,7 +179,9 @@ export class Relayer {
             failedJob.updatedAt = Date.now();
             await this.storage.save(failedJob);
           }
-        } catch { /* storage error during cleanup */ }
+        } catch {
+          /* storage error during cleanup */
+        }
       });
 
     return job.id;
@@ -220,7 +222,9 @@ export class Relayer {
               failedJob.updatedAt = Date.now();
               await this.storage.save(failedJob);
             }
-          } catch { /* storage error during cleanup */ }
+          } catch {
+            /* storage error during cleanup */
+          }
         });
     }
 

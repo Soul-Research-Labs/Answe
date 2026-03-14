@@ -14,6 +14,7 @@ import {
 } from "./crypto.js";
 import type { PrivacyNote } from "./notes.js";
 import type { Felt252, ProofRequest, ProofResult } from "./types.js";
+import type { ProverBackend, WitnessPayload } from "./stone-prover.js";
 
 const TREE_DEPTH = 32;
 
@@ -401,4 +402,128 @@ export function generateWithdrawProof(input: WithdrawProofInput): ProofResult {
       error: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+// ─── Backend-routed proof generation (async) ─────────────────────
+
+/**
+ * Split a transfer witness into public and private inputs suitable
+ * for a remote prover backend.
+ */
+function splitTransferWitness(
+  root: Felt252,
+  nf0: Felt252,
+  nf1: Felt252,
+  oc0: Felt252,
+  oc1: Felt252,
+  fee: bigint,
+  privateData: Felt252[],
+): WitnessPayload {
+  return {
+    circuitType: "transfer",
+    publicInputs: [root, nf0, nf1, oc0, oc1, fee],
+    privateInputs: privateData,
+  };
+}
+
+/**
+ * Split a withdraw witness into public and private inputs suitable
+ * for a remote prover backend.
+ */
+function splitWithdrawWitness(
+  root: Felt252,
+  nf0: Felt252,
+  nf1: Felt252,
+  changeCm: Felt252,
+  exitValue: bigint,
+  assetId: Felt252,
+  fee: bigint,
+  privateData: Felt252[],
+): WitnessPayload {
+  return {
+    circuitType: "withdraw",
+    publicInputs: [root, nf0, nf1, changeCm, exitValue, assetId, fee],
+    privateInputs: privateData,
+  };
+}
+
+/**
+ * Generate a transfer proof routed through a ProverBackend.
+ *
+ * Assembles the witness locally, sends it to the backend for STARK
+ * proof generation, and returns the result with real proof data.
+ */
+export async function generateTransferProofAsync(
+  input: TransferProofInput,
+  backend: ProverBackend,
+): Promise<ProofResult> {
+  const localResult = generateTransferProof(input);
+  if (!localResult.success || !localResult.proof) {
+    return localResult;
+  }
+
+  const { proof } = localResult;
+  const witness = splitTransferWitness(
+    proof.merkleRoot,
+    proof.nullifiers[0],
+    proof.nullifiers[1],
+    proof.outputCommitments[0],
+    proof.outputCommitments[1],
+    proof.fee,
+    proof.proofData,
+  );
+
+  const backendResult = await backend.prove(witness);
+  if (!backendResult.success || !backendResult.proof) {
+    return backendResult;
+  }
+
+  return {
+    success: true,
+    proof: {
+      ...proof,
+      proofData: backendResult.proof.proofData,
+    },
+  };
+}
+
+/**
+ * Generate a withdrawal proof routed through a ProverBackend.
+ *
+ * Assembles the witness locally, sends it to the backend for STARK
+ * proof generation, and returns the result with real proof data.
+ */
+export async function generateWithdrawProofAsync(
+  input: WithdrawProofInput,
+  backend: ProverBackend,
+): Promise<ProofResult> {
+  const localResult = generateWithdrawProof(input);
+  if (!localResult.success || !localResult.proof) {
+    return localResult;
+  }
+
+  const { proof } = localResult;
+  const witness = splitWithdrawWitness(
+    proof.merkleRoot,
+    proof.nullifiers[0],
+    proof.nullifiers[1],
+    proof.outputCommitments[0],
+    proof.exitValue!,
+    0n,
+    proof.fee,
+    proof.proofData,
+  );
+
+  const backendResult = await backend.prove(witness);
+  if (!backendResult.success || !backendResult.proof) {
+    return backendResult;
+  }
+
+  return {
+    success: true,
+    proof: {
+      ...proof,
+      proofData: backendResult.proof.proofData,
+    },
+  };
 }

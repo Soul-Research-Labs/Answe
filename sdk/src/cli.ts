@@ -41,6 +41,7 @@ Commands:
   backup <file> --password <pw>     Encrypt and save notes to file
   restore <file> --password <pw>    Restore notes from encrypted backup
   verify-backup <file> --password <pw>  Verify a backup file
+  verify-deployment                      Verify deployed contract health
 
 Options:
   --rpc <url>        Starknet RPC endpoint (default: http://localhost:5050)
@@ -463,6 +464,83 @@ async function cmdVerifyBackup(
   console.log(`  Pending     : ${stats.pending}`);
 }
 
+// ─── Verify Deployment ───────────────────────────────────────────
+
+async function cmdVerifyDeployment(flags: Record<string, string>): Promise<void> {
+  const rpc = flags.rpc || "http://localhost:5050";
+  const poolAddr = flags.pool;
+
+  if (!poolAddr) {
+    console.error("Error: --pool <address> is required");
+    process.exit(1);
+  }
+
+  const { RpcProvider, Contract } = await import("starknet");
+  const { PRIVACY_POOL_ABI } = await import("./types.js");
+
+  const provider = new RpcProvider({ nodeUrl: rpc });
+  console.log(`Verifying deployment on ${rpc}...\n`);
+
+  const checks: { name: string; ok: boolean; detail: string }[] = [];
+
+  // Check pool contract responds
+  try {
+    const pool = new Contract(PRIVACY_POOL_ABI as any, poolAddr, provider);
+    const root = await pool.call("get_root");
+    checks.push({ name: "PrivacyPool.get_root()", ok: true, detail: `root=${root}` });
+  } catch (e: any) {
+    checks.push({ name: "PrivacyPool.get_root()", ok: false, detail: e.message });
+  }
+
+  try {
+    const pool = new Contract(PRIVACY_POOL_ABI as any, poolAddr, provider);
+    const count = await pool.call("get_leaf_count");
+    checks.push({ name: "PrivacyPool.get_leaf_count()", ok: true, detail: `leaves=${count}` });
+  } catch (e: any) {
+    checks.push({ name: "PrivacyPool.get_leaf_count()", ok: false, detail: e.message });
+  }
+
+  // Check stealth registry if provided
+  if (flags.stealth) {
+    try {
+      const { STEALTH_REGISTRY_ABI } = await import("./types.js");
+      const reg = new Contract(STEALTH_REGISTRY_ABI as any, flags.stealth, provider);
+      const count = await reg.call("get_ephemeral_count");
+      checks.push({ name: "StealthRegistry.get_ephemeral_count()", ok: true, detail: `count=${count}` });
+    } catch (e: any) {
+      checks.push({ name: "StealthRegistry.get_ephemeral_count()", ok: false, detail: e.message });
+    }
+  }
+
+  // Check epoch manager if provided
+  if (flags.epochs) {
+    try {
+      const { EPOCH_MANAGER_ABI } = await import("./types.js");
+      const epoch = new Contract(EPOCH_MANAGER_ABI as any, flags.epochs, provider);
+      const current = await epoch.call("get_current_epoch");
+      checks.push({ name: "EpochManager.get_current_epoch()", ok: true, detail: `epoch=${current}` });
+    } catch (e: any) {
+      checks.push({ name: "EpochManager.get_current_epoch()", ok: false, detail: e.message });
+    }
+  }
+
+  // Print results
+  let allOk = true;
+  for (const c of checks) {
+    const icon = c.ok ? "✓" : "✗";
+    console.log(`  ${icon} ${c.name} — ${c.detail}`);
+    if (!c.ok) allOk = false;
+  }
+
+  console.log("");
+  if (allOk) {
+    console.log("All checks passed!");
+  } else {
+    console.log("Some checks failed — review above.");
+    process.exit(1);
+  }
+}
+
 // ─── Main ────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
@@ -510,6 +588,9 @@ async function main(): Promise<void> {
       break;
     case "verify-backup":
       await cmdVerifyBackup(positional, flags);
+      break;
+    case "verify-deployment":
+      await cmdVerifyDeployment(flags);
       break;
     default:
       console.error(`Unknown command: ${command}`);

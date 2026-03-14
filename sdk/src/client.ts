@@ -41,6 +41,8 @@ import {
   ClientMerkleTree,
   generateTransferProof,
   generateWithdrawProof,
+  generateTransferProofAsync,
+  generateWithdrawProofAsync,
 } from "./prover.js";
 import { padEnvelope } from "./metadata.js";
 
@@ -178,8 +180,8 @@ export class StarkPrivacyClient {
     // Select input notes
     const inputs = this.notes.selectNotes(amount, assetId, this.keys.ownerHash);
 
-    // Generate proof using the prover backend
-    const result = generateTransferProof({
+    // Generate proof — route through prover backend if non-local
+    const proofInput = {
       spendingKey: this.keys.spendingKey,
       inputNotes: inputs,
       recipientOwnerHash,
@@ -188,7 +190,10 @@ export class StarkPrivacyClient {
       chainId: this.config.chainId,
       appId: this.config.appId,
       tree: this.tree,
-    });
+    };
+    const result = this.prover.name === "local-mvp"
+      ? generateTransferProof(proofInput)
+      : await generateTransferProofAsync(proofInput, this.prover);
 
     if (!result.success || !result.proof) {
       throw new Error(`Proof generation failed: ${result.error}`);
@@ -251,8 +256,8 @@ export class StarkPrivacyClient {
     // Select input notes
     const inputs = this.notes.selectNotes(amount, assetId, this.keys.ownerHash);
 
-    // Generate withdrawal proof using the prover backend
-    const result = generateWithdrawProof({
+    // Generate proof — route through prover backend if non-local
+    const proofInput = {
       spendingKey: this.keys.spendingKey,
       inputNotes: inputs,
       exitValue: amount,
@@ -260,7 +265,10 @@ export class StarkPrivacyClient {
       chainId: this.config.chainId,
       appId: this.config.appId,
       tree: this.tree,
-    });
+    };
+    const result = this.prover.name === "local-mvp"
+      ? generateWithdrawProof(proofInput)
+      : await generateWithdrawProofAsync(proofInput, this.prover);
 
     if (!result.success || !result.proof) {
       throw new Error(`Proof generation failed: ${result.error}`);

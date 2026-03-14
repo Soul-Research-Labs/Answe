@@ -1,8 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   ClientMerkleTree,
   generateTransferProof,
   generateWithdrawProof,
+  generateTransferProofAsync,
+  generateWithdrawProofAsync,
 } from "../prover.js";
 import {
   poseidonHash2,
@@ -10,7 +12,8 @@ import {
   randomFelt252,
 } from "../crypto.js";
 import { NoteManager } from "../notes.js";
-import type { Felt252 } from "../types.js";
+import type { Felt252, ProofResult } from "../types.js";
+import type { ProverBackend, WitnessPayload } from "../stone-prover.js";
 
 const SK = 0x1234n;
 const OWNER = poseidonHash2(SK, 0n);
@@ -303,5 +306,237 @@ describe("generateWithdrawProof", () => {
 
     expect(result.success).toBe(true);
     expect(result.proof!.exitValue).toBe(1000n);
+  });
+});
+
+// ─── Async Proof Generation (Backend-routed) ─────────────────────
+
+describe("generateTransferProofAsync", () => {
+  /** Mock backend that records received witness and returns transformed proof data. */
+  function makeMockBackend(
+    transform: (w: WitnessPayload) => Felt252[] = (w) => [
+      ...w.publicInputs,
+      99n,
+    ],
+  ): ProverBackend & { lastWitness: WitnessPayload | null } {
+    const backend = {
+      name: "mock-backend",
+      lastWitness: null as WitnessPayload | null,
+      async prove(witness: WitnessPayload): Promise<ProofResult> {
+        backend.lastWitness = witness;
+        return {
+          success: true,
+          proof: {
+            proofType: witness.circuitType === "transfer" ? 1 : 2,
+            merkleRoot: witness.publicInputs[0] ?? 0n,
+            nullifiers: [
+              witness.publicInputs[1] ?? 0n,
+              witness.publicInputs[2] ?? 0n,
+            ],
+            outputCommitments: witness.publicInputs.slice(3, 5),
+            fee: 0n,
+            proofData: transform(witness),
+          },
+        };
+      },
+      async healthCheck() {
+        return true;
+      },
+    };
+    return backend;
+  }
+
+  it("routes transfer witness through backend", async () => {
+    const nm = new NoteManager();
+    const tree = new ClientMerkleTree();
+    const note0 = makeNote(nm, 1000n, tree);
+    const note1 = makeNote(nm, 500n, tree);
+    const recipientOwner = poseidonHash2(0x9999n, 0n);
+    const backend = makeMockBackend();
+
+    const result = await generateTransferProofAsync(
+      {
+        spendingKey: SK,
+        inputNotes: [note0, note1],
+        recipientOwnerHash: recipientOwner,
+        amount: 300n,
+        assetId: 0n,
+        chainId: CHAIN_ID,
+        appId: APP_ID,
+        tree,
+      },
+      backend,
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.proof).toBeDefined();
+    // Backend received a witness
+    expect(backend.lastWitness).not.toBeNull();
+    expect(backend.lastWitness!.circuitType).toBe("transfer");
+    // Public inputs: [root, nf0, nf1, oc0, oc1, fee]
+    expect(backend.lastWitness!.publicInputs).toHaveLength(6);
+    // Proof data comes from backend (has the 99n sentinel)
+    expect(result.proof!.proofData).toContain(99n);
+    // But public inputs are preserved from local computation
+    expect(result.proof!.proofType).toBe(1);
+    expect(result.proof!.nullifiers).toHaveLength(2);
+    expect(result.proof!.outputCommitments).toHaveLength(2);
+  });
+
+  it("propagates backend failure", async () => {
+    const nm = new NoteManager();
+    const tree = new ClientMerkleTree();
+    const note0 = makeNote(nm, 500n, tree);
+    const note1 = makeNote(nm, 500n, tree);
+    const failBackend: ProverBackend = {
+      name: "fail-backend",
+      async prove() {
+        return { success: false, error: "remote prover down" };
+      },
+      async healthCheck() {
+        return false;
+      },
+    };
+
+    const result = await generateTransferProofAsync(
+      {
+        spendingKey: SK,
+        inputNotes: [note0, note1],
+        recipientOwnerHash: poseidonHash2(0x5555n, 0n),
+        amount: 200n,
+        assetId: 0n,
+        chainId: CHAIN_ID,
+        appId: APP_ID,
+        tree,
+      },
+      failBackend,
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("remote prover down");
+  });
+
+  it("returns local error on invalid inputs (before reaching backend)", async () => {
+    const tree = new ClientMerkleTree(); // empty tree
+    const nm = new NoteManager();
+    const backend = makeMockBackend();
+
+    const result = await generateTransferProofAsync(
+      {
+        spendingKey: SK,
+        inputNotes: [
+          nm.createNote(OWNER, 100n, 0n),
+          nm.createNote(OWNER, 100n, 0n),
+        ],
+        recipientOwnerHash: OWNER,
+        amount: 50n,
+        assetId: 0n,
+        chainId: CHAIN_ID,
+        appId: APP_ID,
+        tree,
+      },
+      backend,
+    );
+
+    expect(result.success).toBe(false);
+    // Backend should NOT have been called
+    expect(backend.lastWitness).toBeNull();
+  });
+});
+
+describe("generateWithdrawProofAsync", () => {
+  function makeMockBackend(): ProverBackend & {
+    lastWitness: WitnessPayload | null;
+  } {
+    const backend = {
+      name: "mock-backend",
+      lastWitness: null as WitnessPayload | null,
+      async prove(witness: WitnessPayload): Promise<ProofResult> {
+        backend.lastWitness = witness;
+        return {
+          success: true,
+          proof: {
+            proofType: 2,
+            merkleRoot: witness.publicInputs[0] ?? 0n,
+            nullifiers: [
+              witness.publicInputs[1] ?? 0n,
+              witness.publicInputs[2] ?? 0n,
+            ],
+            outputCommitments: [witness.publicInputs[3] ?? 0n],
+            fee: 0n,
+            proofData: [...witness.publicInputs, 77n],
+          },
+        };
+      },
+      async healthCheck() {
+        return true;
+      },
+    };
+    return backend;
+  }
+
+  it("routes withdraw witness through backend", async () => {
+    const nm = new NoteManager();
+    const tree = new ClientMerkleTree();
+    const note0 = makeNote(nm, 1000n, tree);
+    const note1 = makeNote(nm, 500n, tree);
+    const backend = makeMockBackend();
+
+    const result = await generateWithdrawProofAsync(
+      {
+        spendingKey: SK,
+        inputNotes: [note0, note1],
+        exitValue: 400n,
+        assetId: 0n,
+        chainId: CHAIN_ID,
+        appId: APP_ID,
+        tree,
+      },
+      backend,
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.proof).toBeDefined();
+    expect(backend.lastWitness).not.toBeNull();
+    expect(backend.lastWitness!.circuitType).toBe("withdraw");
+    // Public inputs: [root, nf0, nf1, changeCm, exitValue, assetId, fee]
+    expect(backend.lastWitness!.publicInputs).toHaveLength(7);
+    // Proof data comes from backend
+    expect(result.proof!.proofData).toContain(77n);
+    // Keep local public inputs
+    expect(result.proof!.proofType).toBe(2);
+    expect(result.proof!.exitValue).toBe(400n);
+  });
+
+  it("propagates backend failure on withdraw", async () => {
+    const nm = new NoteManager();
+    const tree = new ClientMerkleTree();
+    const note0 = makeNote(nm, 500n, tree);
+    const note1 = makeNote(nm, 500n, tree);
+    const failBackend: ProverBackend = {
+      name: "fail-backend",
+      async prove() {
+        return { success: false, error: "GPU OOM" };
+      },
+      async healthCheck() {
+        return false;
+      },
+    };
+
+    const result = await generateWithdrawProofAsync(
+      {
+        spendingKey: SK,
+        inputNotes: [note0, note1],
+        exitValue: 500n,
+        assetId: 0n,
+        chainId: CHAIN_ID,
+        appId: APP_ID,
+        tree,
+      },
+      failBackend,
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("GPU OOM");
   });
 });
