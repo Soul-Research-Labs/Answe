@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { KeyManager } from "../keys.js";
+import { KeyManager, zeroize } from "../keys.js";
 import { poseidonHash2 } from "../crypto.js";
 
 describe("KeyManager", () => {
@@ -55,5 +55,64 @@ describe("KeyManager", () => {
       const km = KeyManager.generate();
       expect(() => km.exportKeys()).toThrow("spending key");
     });
+  });
+
+  describe("destroy", () => {
+    it("marks the instance as destroyed", () => {
+      const km = KeyManager.generate();
+      expect(km.isDestroyed).toBe(false);
+      km.destroy();
+      expect(km.isDestroyed).toBe(true);
+    });
+
+    it("throws on spendingKey access after destroy", () => {
+      const km = KeyManager.generate();
+      km.destroy();
+      expect(() => km.spendingKey).toThrow("destroyed");
+    });
+
+    it("throws on viewingKey access after destroy", () => {
+      const km = KeyManager.generate();
+      km.destroy();
+      expect(() => km.viewingKey).toThrow("destroyed");
+    });
+
+    it("throws on exportKeys after destroy", () => {
+      const km = KeyManager.generate();
+      km.destroy();
+      expect(() => km.exportKeys(true)).toThrow("destroyed");
+    });
+
+    it("throws on exportViewingKeys after destroy", () => {
+      const km = KeyManager.generate();
+      km.destroy();
+      expect(() => km.exportViewingKeys()).toThrow("destroyed");
+    });
+
+    it("ownerHash remains accessible after destroy (public data)", () => {
+      const km = KeyManager.generate();
+      const hash = km.ownerHash;
+      km.destroy();
+      expect(km.ownerHash).toBe(hash);
+    });
+
+    it("is idempotent — calling destroy twice does not throw", () => {
+      const km = KeyManager.generate();
+      km.destroy();
+      expect(() => km.destroy()).not.toThrow();
+    });
+  });
+});
+
+describe("zeroize", () => {
+  it("fills buffer with zeros", () => {
+    const buf = new Uint8Array([0xff, 0xaa, 0x55, 0x01]);
+    zeroize(buf);
+    expect(buf.every((b) => b === 0)).toBe(true);
+  });
+
+  it("handles empty buffer", () => {
+    const buf = new Uint8Array(0);
+    expect(() => zeroize(buf)).not.toThrow();
   });
 });

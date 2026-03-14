@@ -5,6 +5,7 @@ export {
   type PrivacyKeyPair,
   type SpendingKey,
   type ViewingKey,
+  zeroize,
 } from "./keys.js";
 export {
   NoteManager,
