@@ -13,6 +13,12 @@
 
 import { KeyManager } from "./keys.js";
 import { StarkPrivacyClient, type StarkPrivacyConfig } from "./client.js";
+import {
+  NoteManager,
+  saveNotesToFile,
+  loadNotesFromFile,
+  verifyBackup,
+} from "./notes.js";
 import type { Felt252 } from "./types.js";
 
 // ─── Helpers ─────────────────────────────────────────────────────
@@ -32,6 +38,9 @@ Commands:
   stealth-scan                      Scan for incoming stealth payments
   bridge-l1 <commitment> <l1addr> <amount>  Bridge to L1
   epoch                             Show current epoch info
+  backup <file> --password <pw>     Encrypt and save notes to file
+  restore <file> --password <pw>    Restore notes from encrypted backup
+  verify-backup <file> --password <pw>  Verify a backup file
 
 Options:
   --rpc <url>        Starknet RPC endpoint (default: http://localhost:5050)
@@ -371,6 +380,87 @@ async function cmdEpoch(flags: Record<string, string>): Promise<void> {
   }
 }
 
+// ─── Backup & Recovery Commands ──────────────────────────────────
+
+async function cmdBackup(
+  positional: string[],
+  flags: Record<string, string>,
+): Promise<void> {
+  if (!positional[0]) {
+    console.error("Error: backup requires <file>");
+    process.exit(1);
+  }
+  if (!flags.password) {
+    console.error("Error: --password <pw> is required");
+    process.exit(1);
+  }
+  if (!flags.key) {
+    console.error("Error: --key <spending_key> is required");
+    process.exit(1);
+  }
+
+  const config = buildConfig(flags);
+  const client = StarkPrivacyClient.fromSpendingKey(
+    config,
+    toBigInt(flags.key),
+  );
+  const filePath = positional[0];
+
+  console.log(`Saving encrypted note backup to ${filePath}...`);
+  await saveNotesToFile(client.notes, filePath, flags.password);
+  const stats = client.notes.getStats();
+  console.log(`Backup complete: ${stats.total} note(s) saved.`);
+}
+
+async function cmdRestore(
+  positional: string[],
+  flags: Record<string, string>,
+): Promise<void> {
+  if (!positional[0]) {
+    console.error("Error: restore requires <file>");
+    process.exit(1);
+  }
+  if (!flags.password) {
+    console.error("Error: --password <pw> is required");
+    process.exit(1);
+  }
+
+  const filePath = positional[0];
+  console.log(`Restoring notes from ${filePath}...`);
+
+  const nm = await loadNotesFromFile(filePath, flags.password);
+  const stats = nm.getStats();
+  console.log(`Restore complete!`);
+  console.log(`  Total notes : ${stats.total}`);
+  console.log(`  Unspent     : ${stats.unspent}`);
+  console.log(`  Spent       : ${stats.spent}`);
+  console.log(`  Pending     : ${stats.pending}`);
+}
+
+async function cmdVerifyBackup(
+  positional: string[],
+  flags: Record<string, string>,
+): Promise<void> {
+  if (!positional[0]) {
+    console.error("Error: verify-backup requires <file>");
+    process.exit(1);
+  }
+  if (!flags.password) {
+    console.error("Error: --password <pw> is required");
+    process.exit(1);
+  }
+
+  const filePath = positional[0];
+  console.log(`Verifying backup at ${filePath}...`);
+
+  const stats = await verifyBackup(filePath, flags.password);
+  console.log(`Backup is valid!`);
+  console.log(`  Total notes : ${stats.total}`);
+  console.log(`  Unspent     : ${stats.unspent}`);
+  console.log(`  Spent       : ${stats.spent}`);
+  console.log(`  Pending     : ${stats.pending}`);
+}
+
 // ─── Main ────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
@@ -409,6 +499,15 @@ async function main(): Promise<void> {
       break;
     case "epoch":
       await cmdEpoch(flags);
+      break;
+    case "backup":
+      await cmdBackup(positional, flags);
+      break;
+    case "restore":
+      await cmdRestore(positional, flags);
+      break;
+    case "verify-backup":
+      await cmdVerifyBackup(positional, flags);
       break;
     default:
       console.error(`Unknown command: ${command}`);
