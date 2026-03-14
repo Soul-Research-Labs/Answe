@@ -90,3 +90,4 @@ export {
   type RemoteProverConfig,
   type RawSTARKProof,
 } from "./stone-prover.js";
+export { SqliteJobStorage } from "./sqlite-storage.js";
