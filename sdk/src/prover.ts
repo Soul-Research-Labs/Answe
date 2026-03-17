@@ -509,7 +509,7 @@ export async function generateWithdrawProofAsync(
     proof.nullifiers[1],
     proof.outputCommitments[0],
     proof.exitValue!,
-    0n,
+    input.assetId,
     proof.fee,
     proof.proofData,
   );

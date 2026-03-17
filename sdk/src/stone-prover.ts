@@ -72,17 +72,7 @@ export class LocalProver implements ProverBackend {
 
   async prove(witness: WitnessPayload): Promise<ProofResult> {
     const proofData = [...witness.publicInputs, ...witness.privateInputs];
-    const proof: ProofRequest = {
-      proofType: witness.circuitType === "transfer" ? 1 : 2,
-      merkleRoot: witness.publicInputs[0] ?? 0n,
-      nullifiers: [
-        witness.publicInputs[1] ?? 0n,
-        witness.publicInputs[2] ?? 0n,
-      ],
-      outputCommitments: witness.publicInputs.slice(3),
-      fee: 0n,
-      proofData,
-    };
+    const proof = buildProofFromWitness(witness, proofData);
     return { success: true, proof };
   }
 
@@ -101,13 +91,79 @@ function serializeWitness(witness: WitnessPayload): string {
   });
 }
 
-function parseProofResponse(data: {
-  proof_data: string[];
-  prover_time_ms: number;
-}): RawSTARKProof {
+function parseFelt(value: unknown, field: string): Felt252 {
+  if (typeof value !== "string" && typeof value !== "number") {
+    throw new Error(`${field} must be a felt string or number`);
+  }
+
+  const raw = String(value).trim();
+  if (!raw) {
+    throw new Error(`${field} is empty`);
+  }
+
+  try {
+    return BigInt(raw);
+  } catch {
+    throw new Error(`${field} is not a valid felt`);
+  }
+}
+
+function parseProofResponse(data: unknown): RawSTARKProof {
+  if (typeof data !== "object" || data === null) {
+    throw new Error("invalid prover response payload");
+  }
+
+  const payload = data as {
+    proof_data?: unknown;
+    prover_time_ms?: unknown;
+  };
+
+  if (!Array.isArray(payload.proof_data)) {
+    throw new Error("proof_data must be an array");
+  }
+
+  if (
+    payload.prover_time_ms !== undefined &&
+    typeof payload.prover_time_ms !== "number"
+  ) {
+    throw new Error("prover_time_ms must be a number");
+  }
+
   return {
-    proofData: data.proof_data.map((h) => BigInt(h)),
-    proverTimeMs: data.prover_time_ms,
+    proofData: payload.proof_data.map((h, i) => parseFelt(h, `proof_data[${i}]`)),
+    proverTimeMs: payload.prover_time_ms ?? 0,
+  };
+}
+
+function buildProofFromWitness(
+  witness: WitnessPayload,
+  proofData: Felt252[],
+): ProofRequest {
+  if (witness.circuitType === "transfer") {
+    return {
+      proofType: 1,
+      merkleRoot: witness.publicInputs[0] ?? 0n,
+      nullifiers: [
+        witness.publicInputs[1] ?? 0n,
+        witness.publicInputs[2] ?? 0n,
+      ],
+      outputCommitments: [
+        witness.publicInputs[3] ?? 0n,
+        witness.publicInputs[4] ?? 0n,
+      ],
+      fee: witness.publicInputs[5] ?? 0n,
+      proofData,
+    };
+  }
+
+  return {
+    proofType: 2,
+    merkleRoot: witness.publicInputs[0] ?? 0n,
+    nullifiers: [witness.publicInputs[1] ?? 0n, witness.publicInputs[2] ?? 0n],
+    outputCommitments: [witness.publicInputs[3] ?? 0n],
+    exitValue: witness.publicInputs[4] ?? 0n,
+    fee: witness.publicInputs[6] ?? 0n,
+    proofData,
   };
 }
 
@@ -184,23 +240,9 @@ export class StoneProver implements ProverBackend {
         };
       }
 
-      const data = (await res.json()) as {
-        proof_data: string[];
-        prover_time_ms: number;
-      };
+      const data = await res.json();
       const raw = parseProofResponse(data);
-
-      const proof: ProofRequest = {
-        proofType: witness.circuitType === "transfer" ? 1 : 2,
-        merkleRoot: witness.publicInputs[0] ?? 0n,
-        nullifiers: [
-          witness.publicInputs[1] ?? 0n,
-          witness.publicInputs[2] ?? 0n,
-        ],
-        outputCommitments: witness.publicInputs.slice(3),
-        fee: 0n,
-        proofData: raw.proofData,
-      };
+      const proof = buildProofFromWitness(witness, raw.proofData);
 
       return { success: true, proof };
     } catch (err) {
@@ -272,14 +314,18 @@ export class S2Prover implements ProverBackend {
         };
       }
 
-      const { job_id } = (await submitRes.json()) as { job_id: string };
+      const submitBody = (await submitRes.json()) as { job_id?: unknown };
+      if (typeof submitBody.job_id !== "string" || !submitBody.job_id.trim()) {
+        return { success: false, error: "s-two submit response missing job_id" };
+      }
+      const jobId = submitBody.job_id;
 
       // 2. Poll for result
       const deadline = Date.now() + this.config.timeoutMs;
       while (Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, this.pollIntervalMs));
         const pollRes = await fetch(
-          `${this.config.endpoint}/api/v1/proofs/${encodeURIComponent(job_id)}`,
+          `${this.config.endpoint}/api/v1/proofs/${encodeURIComponent(jobId)}`,
           { headers, signal: AbortSignal.timeout(10_000) },
         );
 
@@ -298,17 +344,7 @@ export class S2Prover implements ProverBackend {
             prover_time_ms: body.prover_time_ms ?? 0,
           });
 
-          const proof: ProofRequest = {
-            proofType: witness.circuitType === "transfer" ? 1 : 2,
-            merkleRoot: witness.publicInputs[0] ?? 0n,
-            nullifiers: [
-              witness.publicInputs[1] ?? 0n,
-              witness.publicInputs[2] ?? 0n,
-            ],
-            outputCommitments: witness.publicInputs.slice(3),
-            fee: 0n,
-            proofData: raw.proofData,
-          };
+          const proof = buildProofFromWitness(witness, raw.proofData);
           return { success: true, proof };
         }
 
