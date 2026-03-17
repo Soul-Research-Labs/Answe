@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "forge-std/Test.sol";
 import "../StarkPrivacyBridge.sol";
 
 /**
@@ -61,7 +62,7 @@ contract MockStarknetMessaging is IStarknetMessaging {
  * @title StarkPrivacyBridgeTest
  * @notice Foundry test suite for StarkPrivacyBridge.
  */
-contract StarkPrivacyBridgeTest {
+contract StarkPrivacyBridgeTest is Test {
     MockStarknetMessaging public mockMessaging;
     StarkPrivacyBridge public bridge;
 
@@ -112,27 +113,18 @@ contract StarkPrivacyBridgeTest {
     }
 
     function testConstructorRevertsZeroStarknetCore() public {
-        try new StarkPrivacyBridge(address(0), L2_BRIDGE, owner) {
-            revert("expected revert");
-        } catch {}
+        vm.expectRevert(StarkPrivacyBridge.ZeroAddress.selector);
+        new StarkPrivacyBridge(address(0), L2_BRIDGE, owner);
     }
 
     function testConstructorRevertsZeroOwner() public {
-        try
-            new StarkPrivacyBridge(
-                address(mockMessaging),
-                L2_BRIDGE,
-                address(0)
-            )
-        {
-            revert("expected revert");
-        } catch {}
+        vm.expectRevert(StarkPrivacyBridge.ZeroAddress.selector);
+        new StarkPrivacyBridge(address(mockMessaging), L2_BRIDGE, address(0));
     }
 
     function testConstructorRevertsZeroL2Bridge() public {
-        try new StarkPrivacyBridge(address(mockMessaging), 0, owner) {
-            revert("expected revert");
-        } catch {}
+        vm.expectRevert(StarkPrivacyBridge.InvalidCommitment.selector);
+        new StarkPrivacyBridge(address(mockMessaging), 0, owner);
     }
 
     // ─── Deposit Tests ──────────────────────────────
@@ -146,22 +138,19 @@ contract StarkPrivacyBridgeTest {
     }
 
     function testDepositRevertsZeroCommitment() public {
-        try bridge.deposit{value: 1 ether}(0, 0) {
-            revert("expected revert");
-        } catch {}
+        vm.expectRevert(StarkPrivacyBridge.InvalidCommitment.selector);
+        bridge.deposit{value: 1 ether}(0, 0);
     }
 
     function testDepositRevertsZeroValue() public {
-        try bridge.deposit{value: 0}(COMMITMENT, 0) {
-            revert("expected revert");
-        } catch {}
+        vm.expectRevert(StarkPrivacyBridge.InvalidAmount.selector);
+        bridge.deposit{value: 0}(COMMITMENT, 0);
     }
 
     function testDepositRevertsWhenPaused() public {
         _pauseAsOwner();
-        try bridge.deposit{value: 1 ether}(COMMITMENT, 0) {
-            revert("expected revert");
-        } catch {}
+        vm.expectRevert(StarkPrivacyBridge.BridgePaused.selector);
+        bridge.deposit{value: 1 ether}(COMMITMENT, 0);
     }
 
     function testMultipleDeposits() public {
@@ -190,28 +179,24 @@ contract StarkPrivacyBridgeTest {
     }
 
     function testWithdrawRevertsZeroCommitment() public {
-        try bridge.withdraw(0, user, 1 ether, 0) {
-            revert("expected revert");
-        } catch {}
+        vm.expectRevert(StarkPrivacyBridge.InvalidCommitment.selector);
+        bridge.withdraw(0, user, 1 ether, 0);
     }
 
     function testWithdrawRevertsZeroRecipient() public {
-        try bridge.withdraw(COMMITMENT, address(0), 1 ether, 0) {
-            revert("expected revert");
-        } catch {}
+        vm.expectRevert(StarkPrivacyBridge.ZeroAddress.selector);
+        bridge.withdraw(COMMITMENT, address(0), 1 ether, 0);
     }
 
     function testWithdrawRevertsZeroAmount() public {
-        try bridge.withdraw(COMMITMENT, user, 0, 0) {
-            revert("expected revert");
-        } catch {}
+        vm.expectRevert(StarkPrivacyBridge.InvalidAmount.selector);
+        bridge.withdraw(COMMITMENT, user, 0, 0);
     }
 
     function testWithdrawRevertsWhenPaused() public {
         _pauseAsOwner();
-        try bridge.withdraw(COMMITMENT, user, 1 ether, 0) {
-            revert("expected revert");
-        } catch {}
+        vm.expectRevert(StarkPrivacyBridge.BridgePaused.selector);
+        bridge.withdraw(COMMITMENT, user, 1 ether, 0);
     }
 
     function testWithdrawRevertsNoMessage() public {
@@ -244,16 +229,16 @@ contract StarkPrivacyBridgeTest {
     }
 
     function testPauseRevertsNonOwner() public {
-        try bridge.pause() {
-            revert("expected revert");
-        } catch {}
+        vm.prank(user);
+        vm.expectRevert(StarkPrivacyBridge.NotOwner.selector);
+        bridge.pause();
     }
 
     function testPauseRevertsAlreadyPaused() public {
         _pauseAsOwner();
-        // Try again as owner
-        _callAsOwner(abi.encodeWithSelector(bridge.pause.selector));
-        // The inner call should revert but we check paused is still true
+        vm.prank(owner);
+        vm.expectRevert(StarkPrivacyBridge.AlreadyPaused.selector);
+        bridge.pause();
         assert(bridge.paused() == true);
     }
 
@@ -265,9 +250,9 @@ contract StarkPrivacyBridgeTest {
 
     function testUnpauseRevertsNonOwner() public {
         _pauseAsOwner();
-        try bridge.unpause() {
-            revert("expected revert");
-        } catch {}
+        vm.prank(user);
+        vm.expectRevert(StarkPrivacyBridge.NotOwner.selector);
+        bridge.unpause();
     }
 
     // ─── Ownership Tests ────────────────────────────
@@ -279,20 +264,15 @@ contract StarkPrivacyBridgeTest {
     }
 
     function testTransferOwnershipRevertsNonOwner() public {
-        try bridge.transferOwnership(address(0xCAFE)) {
-            revert("expected revert");
-        } catch {}
+        vm.prank(user);
+        vm.expectRevert(StarkPrivacyBridge.NotOwner.selector);
+        bridge.transferOwnership(address(0xCAFE));
     }
 
     function testTransferOwnershipRevertsZeroAddress() public {
-        _callAsOwner(
-            abi.encodeWithSelector(
-                bridge.transferOwnership.selector,
-                address(0)
-            )
-        );
-        // Should have reverted — owner unchanged
-        assert(bridge.owner() == owner);
+        vm.prank(owner);
+        vm.expectRevert(StarkPrivacyBridge.ZeroAddress.selector);
+        bridge.transferOwnership(address(0));
     }
 
     // ─── Receive Tests ──────────────────────────────
@@ -348,14 +328,8 @@ contract StarkPrivacyBridgeTest {
     }
 
     function _callAsOwner(bytes memory data) internal {
-        // In Foundry, you'd use vm.prank(owner). Since this is a plain Solidity test,
-        // the test contract itself acts as the caller. To properly test access control,
-        // integrate with Foundry's Test base contract:
-        //   vm.prank(owner);
-        //   (bool ok, ) = address(bridge).call(data);
-        // For now, this is a structural placeholder for the test suite.
+        vm.prank(owner);
         (bool ok, ) = address(bridge).call(data);
-        // Suppress unused variable warning
-        ok;
+        assertTrue(ok, "owner call failed");
     }
 }

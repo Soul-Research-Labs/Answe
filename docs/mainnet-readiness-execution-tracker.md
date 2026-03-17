@@ -57,7 +57,7 @@ Target commit messages:
 - [x] Finalize relayer durability and restart recovery behavior.
   - [x] Preserve non-zero withdraw `assetId` through proof -> relayer submission path.
 - [x] Add relayer resilience tests for retries, stale jobs, and recovery.
-- [ ] Expand EVM bridge safety matrix (replay, pause, malformed payloads).
+- [x] Expand EVM bridge safety matrix (replay, pause, malformed payloads).
 - [ ] Expand Cairo cross-chain edge-case coverage.
 
 Target commit messages:
@@ -133,7 +133,4 @@ forge test
 
 ## Known Local Blockers
 
-- Foundry forge binary is missing locally, so EVM test verification is currently blocked.
-- Workaround options:
-  - Install Foundry locally before Phase 2 bridge verification.
-  - Run EVM bridge verification in CI until local forge is available.
+- None currently blocking local SDK/Cairo/EVM verification.
