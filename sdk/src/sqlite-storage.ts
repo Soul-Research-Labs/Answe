@@ -61,9 +61,34 @@ export class SqliteJobStorage implements JobStorageAdapter {
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS relayer_meta (
+        key   TEXT PRIMARY KEY,
+        value INTEGER NOT NULL
+      );
       CREATE INDEX IF NOT EXISTS idx_jobs_status ON relayer_jobs(status);
       CREATE INDEX IF NOT EXISTS idx_jobs_created ON relayer_jobs(created_at);
     `);
+
+    // Seed a durable monotonically increasing job ID counter.
+    this.db
+      .prepare(
+        `
+      INSERT INTO relayer_meta(key, value)
+      VALUES (
+        'next_job_id',
+        COALESCE(
+          (
+            SELECT MAX(CAST(SUBSTR(id, 7) AS INTEGER)) + 1
+            FROM relayer_jobs
+            WHERE id GLOB 'relay_[0-9]*'
+          ),
+          0
+        )
+      )
+      ON CONFLICT(key) DO NOTHING
+    `,
+      )
+      .run();
   }
 
   async save(job: RelayerJob): Promise<void> {
@@ -101,13 +126,13 @@ export class SqliteJobStorage implements JobStorageAdapter {
     if (status) {
       const rows = this.db
         .prepare(
-          "SELECT * FROM relayer_jobs WHERE status = ? ORDER BY created_at",
+          "SELECT * FROM relayer_jobs WHERE status = ? ORDER BY created_at, id",
         )
         .all(status) as DbRow[];
       return rows.map(rowToJob);
     }
     const rows = this.db
-      .prepare("SELECT * FROM relayer_jobs ORDER BY created_at")
+      .prepare("SELECT * FROM relayer_jobs ORDER BY created_at, id")
       .all() as DbRow[];
     return rows.map(rowToJob);
   }
@@ -117,10 +142,21 @@ export class SqliteJobStorage implements JobStorageAdapter {
   }
 
   async nextId(): Promise<number> {
-    const row = this.db
-      .prepare("SELECT COUNT(*) as cnt FROM relayer_jobs")
-      .get() as { cnt: number };
-    return row.cnt;
+    const alloc = this.db.transaction(() => {
+      const row = this.db
+        .prepare("SELECT value FROM relayer_meta WHERE key = 'next_job_id'")
+        .get() as { value: number } | undefined;
+
+      const current = row?.value ?? 0;
+      this.db
+        .prepare(
+          "INSERT INTO relayer_meta(key, value) VALUES ('next_job_id', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        )
+        .run(current + 1);
+      return current;
+    });
+
+    return alloc();
   }
 
   /**
@@ -183,7 +219,8 @@ function serializeProof(proof: RelayerJob["proof"]): string {
     ),
     exitValue:
       proof.exitValue != null ? "0x" + proof.exitValue.toString(16) : undefined,
-    assetId: proof.assetId != null ? "0x" + proof.assetId.toString(16) : undefined,
+    assetId:
+      proof.assetId != null ? "0x" + proof.assetId.toString(16) : undefined,
     recipient: proof.recipient,
     fee: "0x" + proof.fee.toString(16),
     proofData: proof.proofData.map((d) => "0x" + d.toString(16)),
