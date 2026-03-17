@@ -91,7 +91,7 @@ Target commit messages:
 
 - [x] Improve SDK packaging/release hygiene.
 - [x] Add CLI/indexer integration reliability coverage.
-- [ ] Add operator-focused SDK docs.
+- [x] Add operator-focused SDK docs.
 
 Target commit messages:
 
