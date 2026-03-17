@@ -24,12 +24,29 @@ import type { Felt252 } from "./types.js";
 // because negating a point only flips y: s * (-P) = -(s * P) → same x.
 
 const _sc = ec.starkCurve as any;
+const CURVE_ORDER: bigint = _sc.CURVE.n as bigint;
+
+function assertValidScalar(value: bigint, label: string): void {
+  if (value <= 0n) {
+    throw new Error(`${label} must be non-zero`);
+  }
+  if (value >= CURVE_ORDER) {
+    throw new Error(`${label} out of Stark curve scalar range`);
+  }
+}
+
+function assertValidPublicKeyX(value: bigint, label: string): void {
+  if (value <= 0n) {
+    throw new Error(`${label} must be non-zero`);
+  }
+}
 
 /**
  * Recover a STARK curve point from its x-coordinate.
  * Uses y² = x³ + α·x + β and the field's sqrt function.
  */
 function liftX(x: bigint): any {
+  assertValidPublicKeyX(x, "public key");
   const Fp = _sc.CURVE.Fp;
   const { a, b } = _sc.CURVE;
   const { ProjectivePoint } = _sc;
@@ -51,6 +68,7 @@ function liftX(x: bigint): any {
  * because a * (b·G) and b * (a·G) have the same x-coordinate.
  */
 function ecdhShared(privateKey: bigint, publicKeyX: bigint): Felt252 {
+  assertValidScalar(privateKey, "private scalar");
   const pubPoint = liftX(publicKeyX);
   const sharedPoint = pubPoint.multiply(privateKey);
   const sharedX: bigint = sharedPoint.toAffine().x;
@@ -88,6 +106,9 @@ export interface StealthAddress {
 export function deriveStealthAddress(
   recipientMeta: MetaAddress,
 ): StealthAddress {
+  assertValidPublicKeyX(recipientMeta.spendingPubKey, "spending public key");
+  assertValidPublicKeyX(recipientMeta.viewingPubKey, "viewing public key");
+
   // Generate ephemeral key pair
   const ephPrivKey = ec.starkCurve.utils.randomPrivateKey();
   const ephPrivHex = encode.addHexPrefix(encode.buf2hex(ephPrivKey));
@@ -126,8 +147,13 @@ export function tryScanNote(
   spendingPubKey: Felt252,
   noteOwner: Felt252,
 ): boolean {
-  // ECDH: shared_secret = Poseidon((viewingKey * ephPubPoint).x, 0)
-  const sharedSecret = ecdhShared(viewingKey, ephemeralPubKey);
-  const expectedOwner = poseidonHash2(sharedSecret, spendingPubKey);
-  return expectedOwner === noteOwner;
+  try {
+    // ECDH: shared_secret = Poseidon((viewingKey * ephPubPoint).x, 0)
+    const sharedSecret = ecdhShared(viewingKey, ephemeralPubKey);
+    const expectedOwner = poseidonHash2(sharedSecret, spendingPubKey);
+    return expectedOwner === noteOwner;
+  } catch {
+    // Fail closed for malformed keys/events during scanning.
+    return false;
+  }
 }
