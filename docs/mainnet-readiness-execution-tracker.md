@@ -54,9 +54,9 @@ Target commit messages:
 
 ### Phase 2 - Relayer and Bridge Safety
 
-- [ ] Finalize relayer durability and restart recovery behavior.
+- [x] Finalize relayer durability and restart recovery behavior.
   - [x] Preserve non-zero withdraw `assetId` through proof -> relayer submission path.
-- [ ] Add relayer resilience tests for retries, stale jobs, and recovery.
+- [x] Add relayer resilience tests for retries, stale jobs, and recovery.
 - [ ] Expand EVM bridge safety matrix (replay, pause, malformed payloads).
 - [ ] Expand Cairo cross-chain edge-case coverage.
 

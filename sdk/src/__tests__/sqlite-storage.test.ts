@@ -19,6 +19,8 @@ function serializeProof(proof: any): string {
     ),
     exitValue:
       proof.exitValue != null ? "0x" + proof.exitValue.toString(16) : undefined,
+    assetId:
+      proof.assetId != null ? "0x" + proof.assetId.toString(16) : undefined,
     recipient: proof.recipient,
     fee: "0x" + proof.fee.toString(16),
     proofData: proof.proofData.map((d: bigint) => "0x" + d.toString(16)),
@@ -33,6 +35,7 @@ function deserializeProof(json: string): any {
     nullifiers: obj.nullifiers.map((n: string) => BigInt(n)),
     outputCommitments: obj.outputCommitments.map((c: string) => BigInt(c)),
     exitValue: obj.exitValue ? BigInt(obj.exitValue) : undefined,
+    assetId: obj.assetId ? BigInt(obj.assetId) : undefined,
     recipient: obj.recipient,
     fee: BigInt(obj.fee),
     proofData: obj.proofData.map((d: string) => BigInt(d)),
@@ -65,12 +68,14 @@ describe("SqliteJobStorage serialization", () => {
       ...SAMPLE_PROOF,
       proofType: 2 as const,
       exitValue: 500n,
+      assetId: 7n,
       recipient: "0xABC",
     };
     const json = serializeProof(proof);
     const restored = deserializeProof(json);
     expect(restored.proofType).toBe(2);
     expect(restored.exitValue).toBe(500n);
+    expect(restored.assetId).toBe(7n);
     expect(restored.recipient).toBe("0xABC");
   });
 
