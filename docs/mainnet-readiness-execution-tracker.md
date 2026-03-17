@@ -58,7 +58,7 @@ Target commit messages:
   - [x] Preserve non-zero withdraw `assetId` through proof -> relayer submission path.
 - [x] Add relayer resilience tests for retries, stale jobs, and recovery.
 - [x] Expand EVM bridge safety matrix (replay, pause, malformed payloads).
-- [ ] Expand Cairo cross-chain edge-case coverage.
+- [x] Expand Cairo cross-chain edge-case coverage.
 
 Target commit messages:
 

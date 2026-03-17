@@ -227,6 +227,33 @@ fn test_kakarot_double_pause_panics() {
     kakarot.pause();
 }
 
+#[test]
+#[should_panic(expected: "adapter is paused")]
+fn test_kakarot_transfer_while_paused_panics() {
+    let pool_addr = deploy_pool();
+    let kakarot_addr = deploy_kakarot_adapter(pool_addr, 10000);
+    let kakarot = IKakarotAdapterDispatcher { contract_address: kakarot_addr };
+
+    kakarot.pause();
+
+    let proof: Array<felt252> = array![1];
+    kakarot.evm_transfer(proof.span(), 0x123, (0x1, 0x2), (0x3, 0x4));
+}
+
+#[test]
+#[should_panic(expected: "adapter is paused")]
+fn test_kakarot_withdraw_while_paused_panics() {
+    let pool_addr = deploy_pool();
+    let kakarot_addr = deploy_kakarot_adapter(pool_addr, 10000);
+    let kakarot = IKakarotAdapterDispatcher { contract_address: kakarot_addr };
+
+    kakarot.pause();
+
+    let recipient: ContractAddress = 0x789.try_into().unwrap();
+    let proof: Array<felt252> = array![1];
+    kakarot.evm_withdraw(proof.span(), 0x123, (0x1, 0x2), 0x4, recipient, 5, 0);
+}
+
 // ─── Multi-Adapter: Kakarot + Madara on Same Pool ────────────────
 
 #[test]
