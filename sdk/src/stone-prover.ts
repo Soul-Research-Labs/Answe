@@ -130,7 +130,9 @@ function parseProofResponse(data: unknown): RawSTARKProof {
   }
 
   return {
-    proofData: payload.proof_data.map((h, i) => parseFelt(h, `proof_data[${i}]`)),
+    proofData: payload.proof_data.map((h, i) =>
+      parseFelt(h, `proof_data[${i}]`),
+    ),
     proverTimeMs: payload.prover_time_ms ?? 0,
   };
 }
@@ -317,7 +319,10 @@ export class S2Prover implements ProverBackend {
 
       const submitBody = (await submitRes.json()) as { job_id?: unknown };
       if (typeof submitBody.job_id !== "string" || !submitBody.job_id.trim()) {
-        return { success: false, error: "s-two submit response missing job_id" };
+        return {
+          success: false,
+          error: "s-two submit response missing job_id",
+        };
       }
       const jobId = submitBody.job_id;
 

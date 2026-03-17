@@ -17,22 +17,27 @@ This runbook defines how to operate StarkPrivacy governance safely using the Mul
 ## Operational Workflow
 
 1. Create proposal in MultiSig.
+
 - Include exact target, selector, and calldata hash.
 - Add human-readable rationale and rollback plan in an out-of-band ticket.
 
 2. Collect signer approvals.
+
 - Approvals must meet threshold before forwarding.
 - Verify no signer duplication and no conflicted signers.
 
 3. Forward approved proposal to Timelock.
+
 - This creates a timelock operation id.
 - Record operation id in change log.
 
 4. Observe waiting period.
+
 - Do not execute before delay expires.
 - Monitor for anomalies, objections, and dependency conflicts.
 
 5. Execute from Timelock after delay.
+
 - Provide calldata matching the queued calldata hash.
 - Verify operation is no longer pending and expected state changed.
 
