@@ -532,6 +532,7 @@ describe("generateWithdrawProofAsync", () => {
     expect(backend.lastWitness).not.toBeNull();
     // Public input layout: [root, nf0, nf1, changeCm, exitValue, assetId, fee]
     expect(backend.lastWitness!.publicInputs[5]).toBe(7n);
+    expect(result.proof!.assetId).toBe(7n);
   });
 
   it("propagates backend failure on withdraw", async () => {

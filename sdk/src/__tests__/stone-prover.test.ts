@@ -254,6 +254,39 @@ describe("S2Prover", () => {
     expect(result.proof!.proofData).toEqual([0xdeadn]);
   });
 
+  it("maps withdraw public inputs into proof envelope fields", async () => {
+    const withdrawWitness: WitnessPayload = {
+      circuitType: "withdraw",
+      publicInputs: [0x111n, 0x222n, 0x333n, 0x444n, 50n, 9n, 3n],
+      privateInputs: [0xaaaan],
+    };
+
+    fetchSpy
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ job_id: "w1" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            status: "completed",
+            proof_data: ["0x55"],
+            prover_time_ms: 2,
+          }),
+          { status: 200 },
+        ),
+      );
+
+    const prover = new S2Prover({ endpoint: "http://s2:3000", maxRetries: 0 });
+    (prover as any).pollIntervalMs = 10;
+
+    const result = await prover.prove(withdrawWitness);
+    expect(result.success).toBe(true);
+    expect(result.proof!.outputCommitments).toEqual([0x444n]);
+    expect(result.proof!.exitValue).toBe(50n);
+    expect(result.proof!.assetId).toBe(9n);
+    expect(result.proof!.fee).toBe(3n);
+  });
+
   it("returns error when job fails", async () => {
     fetchSpy
       .mockResolvedValueOnce(
