@@ -183,6 +183,7 @@ function serializeProof(proof: RelayerJob["proof"]): string {
     ),
     exitValue:
       proof.exitValue != null ? "0x" + proof.exitValue.toString(16) : undefined,
+    assetId: proof.assetId != null ? "0x" + proof.assetId.toString(16) : undefined,
     recipient: proof.recipient,
     fee: "0x" + proof.fee.toString(16),
     proofData: proof.proofData.map((d) => "0x" + d.toString(16)),
@@ -197,6 +198,7 @@ function deserializeProof(json: string): RelayerJob["proof"] {
     nullifiers: obj.nullifiers.map((n: string) => BigInt(n)),
     outputCommitments: obj.outputCommitments.map((c: string) => BigInt(c)),
     exitValue: obj.exitValue ? BigInt(obj.exitValue) : undefined,
+    assetId: obj.assetId ? BigInt(obj.assetId) : undefined,
     recipient: obj.recipient,
     fee: BigInt(obj.fee),
     proofData: obj.proofData.map((d: string) => BigInt(d)),

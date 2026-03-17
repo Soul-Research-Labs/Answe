@@ -456,6 +456,7 @@ export class Relayer {
     proof: ProofRequest,
   ): Promise<InvokeFunctionResponse> {
     const exitValue = proof.exitValue ?? 0n;
+    const assetId = proof.assetId ?? 0n;
     const recipient = proof.recipient ?? "0";
     return this.poolContract.invoke("withdraw", [
       proof.proofData.map((v) => v.toString()),
@@ -467,7 +468,7 @@ export class Relayer {
         low: (exitValue & ((1n << 128n) - 1n)).toString(),
         high: (exitValue >> 128n).toString(),
       },
-      "0", // assetId
+      assetId.toString(),
     ]);
   }
 }

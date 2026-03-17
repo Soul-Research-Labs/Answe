@@ -17,6 +17,8 @@ export interface ProofRequest {
   outputCommitments: Felt252[];
   /** Exit value for withdrawals. */
   exitValue?: bigint;
+  /** Asset ID for withdrawals and relayer routing. */
+  assetId?: Felt252;
   /** Recipient address for withdrawals (relayer needs this). */
   recipient?: string;
   /** Fee for relayer. */

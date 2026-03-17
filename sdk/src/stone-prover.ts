@@ -162,6 +162,7 @@ function buildProofFromWitness(
     nullifiers: [witness.publicInputs[1] ?? 0n, witness.publicInputs[2] ?? 0n],
     outputCommitments: [witness.publicInputs[3] ?? 0n],
     exitValue: witness.publicInputs[4] ?? 0n,
+    assetId: witness.publicInputs[5] ?? 0n,
     fee: witness.publicInputs[6] ?? 0n,
     proofData,
   };

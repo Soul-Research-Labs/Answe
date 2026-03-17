@@ -391,6 +391,7 @@ export function generateWithdrawProof(input: WithdrawProofInput): ProofResult {
       nullifiers: [nf0, nf1],
       outputCommitments: [changeCm],
       exitValue,
+      assetId,
       fee,
       proofData,
     };
