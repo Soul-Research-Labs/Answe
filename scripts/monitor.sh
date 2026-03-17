@@ -20,8 +20,10 @@
 #   export POOL_ADDRESS="0x..."
 #   export EPOCH_MANAGER_ADDRESS="0x..."
 #   export KAKAROT_ADAPTER_ADDRESS="0x..."  # optional
+#   export L1_BRIDGE_ADAPTER_ADDRESS="0x..." # optional
 #   export ALERT_WEBHOOK_URL="https://hooks.slack.com/..."  # optional
 #   export MONITOR_INTERVAL=60  # seconds between checks (default: 60)
+#   export MONITOR_MAX_LOG_BYTES=10485760  # rotate log at this size (default: 10 MiB)
 #
 #   ./scripts/monitor.sh
 #
@@ -36,8 +38,10 @@ KAKAROT="${KAKAROT_ADAPTER_ADDRESS:-}"
 WEBHOOK="${ALERT_WEBHOOK_URL:-}"
 INTERVAL="${MONITOR_INTERVAL:-60}"
 
+L1_BRIDGE="${L1_BRIDGE_ADAPTER_ADDRESS:-}"
 LOG_FILE="${MONITOR_LOG_FILE:-/tmp/starkprivacy-monitor.log}"
 STATE_FILE="${MONITOR_STATE_FILE:-/tmp/starkprivacy-monitor-state.json}"
+MAX_LOG_BYTES="${MONITOR_MAX_LOG_BYTES:-10485760}"  # 10 MiB default
 
 # ─── Helpers ──────────────────────────────────────────────────
 
@@ -64,6 +68,17 @@ alert() {
     curl -s -X POST -H 'Content-Type: application/json' \
       -d "{\"text\": $safe_msg}" \
       "$WEBHOOK" > /dev/null 2>&1 || log "WARN" "Failed to send alert to webhook"
+  fi
+}
+
+rotate_log_if_needed() {
+  if [[ -f "$LOG_FILE" ]]; then
+    local size
+    size=$(wc -c < "$LOG_FILE" 2>/dev/null || echo 0)
+    if [[ $size -ge $MAX_LOG_BYTES ]]; then
+      mv "$LOG_FILE" "${LOG_FILE}.1"
+      log "INFO" "Log rotated (previous log at ${LOG_FILE}.1)"
+    fi
   fi
 }
 
@@ -313,6 +328,25 @@ check_kakarot_health() {
   fi
 }
 
+check_l1_bridge_health() {
+  if [[ -z "$L1_BRIDGE" ]]; then
+    return
+  fi
+
+  log "INFO" "Checking L1 bridge adapter health..."
+
+  local pause_response
+  pause_response=$(call_view "$L1_BRIDGE" "$SELECTOR_IS_PAUSED")
+  local is_paused
+  is_paused=$(echo "$pause_response" | jq -r '.result[0] // "0x0"')
+
+  if [[ "$is_paused" != "0x0" ]]; then
+    alert "WARNING: L1 bridge adapter is PAUSED — L1↔L2 bridging is blocked"
+  else
+    log "INFO" "L1 bridge adapter is active"
+  fi
+}
+
 check_rpc_liveness() {
   log "INFO" "Checking RPC liveness..."
   local response
@@ -354,6 +388,7 @@ main() {
   log "INFO" "Pool:           $POOL"
   log "INFO" "Epoch Manager:  ${EPOCH_MGR:-not configured}"
   log "INFO" "Kakarot:        ${KAKAROT:-not configured}"
+  log "INFO" "L1 Bridge:      ${L1_BRIDGE:-not configured}"
   log "INFO" "Interval:       ${INTERVAL}s"
   log "INFO" "Log file:       $LOG_FILE"
   log "INFO" "========================================="
@@ -365,9 +400,11 @@ main() {
       check_pool_health
       check_epoch_health
       check_kakarot_health
+      check_l1_bridge_health
     fi
 
     print_summary
+    rotate_log_if_needed
     log "INFO" "Sleeping ${INTERVAL}s..."
     sleep "$INTERVAL"
   done
@@ -380,6 +417,7 @@ if [[ "${1:-}" == "--once" ]]; then
     check_pool_health
     check_epoch_health
     check_kakarot_health
+    check_l1_bridge_health
   fi
   print_summary
   exit 0

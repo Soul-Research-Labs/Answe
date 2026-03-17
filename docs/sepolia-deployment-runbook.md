@@ -235,3 +235,69 @@ If critical issues are found post-deployment:
 - LocalProver backend — no real STARK proofs generated
 - Default gas price factor on KakarotAdapter (10000) may need tuning
 - Timelock delay set to 24h — may want shorter for testnet iteration
+
+---
+
+## Mainnet Promotion Checklist
+
+Before deploying to mainnet, complete every item below on top of the Sepolia flow above.
+
+### Verifier Swap
+
+- [ ] Replace `MockVerifier` class hash with audited `StarkVerifier` class hash in deploy.sh or constructor calldata.
+- [ ] Confirm prover backend is set to `stone` or `s-two` (never `local` on mainnet).
+- [ ] Run one full deposit → transfer → withdraw cycle on Sepolia using non-mock verifier before mainnet deploy.
+
+### Contract Class-Hash Validation
+
+After deployment, verify every on-chain class hash matches the locally compiled artifact:
+
+```bash
+MANIFEST="scripts/deployments-mainnet.json"
+for name in PrivacyPool NullifierRegistry SanctionsOracle StealthRegistry \
+            BridgeRouter EpochManager Timelock MultiSig KakarotAdapter UpgradeableProxy; do
+  expected=$(jq -r ".contracts.$name.classHash" "$MANIFEST")
+  onchain=$(starkli class-hash-at \
+    "$(jq -r ".contracts.$name.address" "$MANIFEST")" \
+    --rpc "$STARKNET_RPC_URL")
+  if [[ "$expected" == "$onchain" ]]; then
+    echo "✓ $name class hash matches"
+  else
+    echo "✗ $name MISMATCH — expected $expected, got $onchain"
+  fi
+done
+```
+
+### Signer Hygiene
+
+- [ ] All three MultiSig signers are independent hardware wallets or institutional custodians.
+- [ ] No signer private key is stored in plaintext or environment variables on any server.
+- [ ] Emergency governor key is held in a break-glass procedure (see `docs/incident-response.md`).
+
+### Timelock Tuning
+
+- [ ] Set `min_delay` to at least 48 h for mainnet (constructor arg in `deploy.sh`).
+- [ ] Confirm Timelock delay change itself goes through the governance pipeline.
+
+### Relayer Hardening
+
+- [ ] Relayer account private key managed via KMS or encrypted keystore — never `.env` file on mainnet.
+- [ ] `maxPending` and `minFee` tuned to expected mainnet throughput.
+- [ ] SQLite database file resides on persistent, backed-up storage (not `/tmp`).
+
+### Monitoring
+
+- [ ] `ALERT_WEBHOOK_URL` points to an actively monitored channel.
+- [ ] `MONITOR_INTERVAL` set to ≤30 s for mainnet.
+- [ ] L1 bridge adapter pause state is included in health checks (already in monitor.sh).
+- [ ] Log rotation configured (see monitor.sh `--rotate` support or external logrotate).
+
+### Disaster Recovery
+
+| Scenario | Action |
+|---|---|
+| Exploitable bug found | Emergency governor calls `pause()` on UpgradeableProxy immediately. |
+| Governance key compromised | Rotate emergency governor via proxy; revoke compromised signer in MultiSig. |
+| RPC provider outage | Fail over to backup RPC (`STARKNET_RPC_URL` swap). Monitor and relayer pick up from last persisted state. |
+| Relayer DB corruption | Restore from last WAL checkpoint backup; relayer resumes from persisted job counter. |
+| Merkle tree corruption | Pause pool, snapshot state via indexer, investigate root cause before any upgrade. |
