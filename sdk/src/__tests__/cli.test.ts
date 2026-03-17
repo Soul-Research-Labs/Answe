@@ -320,3 +320,63 @@ describe("CLI subprocess: error handling", () => {
     expect(exitCode).not.toBe(0);
   });
 });
+
+describe("CLI subprocess: missing-flag validation", () => {
+  it("balance without --key fails", () => {
+    const { output, exitCode } = runCli(["balance", "--pool", "0x1"]);
+    expect(exitCode).not.toBe(0);
+    expect(output).toContain("--key");
+  });
+
+  it("stealth-scan without --key fails", () => {
+    const { output, exitCode } = runCli(["stealth-scan"]);
+    expect(exitCode).not.toBe(0);
+    expect(output).toContain("--key");
+  });
+
+  it("stealth-register without --key fails", () => {
+    const { output, exitCode } = runCli(["stealth-register"]);
+    expect(exitCode).not.toBe(0);
+    expect(output).toContain("--key");
+  });
+
+  it("backup without file argument fails", () => {
+    const { exitCode } = runCli(["backup"]);
+    expect(exitCode).not.toBe(0);
+  });
+
+  it("restore without file argument fails", () => {
+    const { exitCode } = runCli(["restore"]);
+    expect(exitCode).not.toBe(0);
+  });
+
+  it("verify-backup without file argument fails", () => {
+    const { exitCode } = runCli(["verify-backup"]);
+    expect(exitCode).not.toBe(0);
+  });
+
+  it("verify-deployment without --pool fails", () => {
+    const { output, exitCode } = runCli(["verify-deployment"]);
+    expect(exitCode).not.toBe(0);
+    expect(output).toContain("--pool");
+  });
+}, 30_000);
+
+describe("CLI subprocess: malformed input", () => {
+  it("deposit with non-numeric amount fails", () => {
+    const { exitCode } = runCli([
+      "deposit",
+      "notanumber",
+      "--key",
+      "0x1",
+      "--pool",
+      "0x2",
+    ]);
+    expect(exitCode).not.toBe(0);
+  });
+
+  it("withdraw with empty hex prefix fails", () => {
+    const { exitCode } = runCli(["withdraw", "0x", "100", "--key", "0x1"]);
+    expect(exitCode).not.toBe(0);
+  });
+}, 30_000);

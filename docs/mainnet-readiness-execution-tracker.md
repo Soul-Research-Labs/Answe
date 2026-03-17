@@ -90,7 +90,7 @@ Target commit messages:
 ### Phase 4 - SDK Release Hygiene
 
 - [x] Improve SDK packaging/release hygiene.
-- [ ] Add CLI/indexer integration reliability coverage.
+- [x] Add CLI/indexer integration reliability coverage.
 - [ ] Add operator-focused SDK docs.
 
 Target commit messages:

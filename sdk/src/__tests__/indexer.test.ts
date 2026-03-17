@@ -322,3 +322,175 @@ describe("EventIndexer edge cases", () => {
     expect(callCount).toBeGreaterThanOrEqual(2);
   });
 });
+
+// ─── Reliability tests ──────────────────────────────────────────
+
+describe("EventIndexer reliability", () => {
+  it("propagates RPC error from getBlockLatestAccepted", async () => {
+    const indexer = new EventIndexer(RPC, POOL);
+    const provider = (indexer as any).provider;
+    provider.getBlockLatestAccepted = vi
+      .fn()
+      .mockRejectedValue(new Error("RPC timeout"));
+
+    await expect(indexer.scanBlocks(1)).rejects.toThrow("RPC timeout");
+  });
+
+  it("propagates RPC error from getEvents mid-scan", async () => {
+    const indexer = new EventIndexer(RPC, POOL);
+    const provider = (indexer as any).provider;
+    provider.getBlockLatestAccepted = vi
+      .fn()
+      .mockResolvedValue({ block_number: 10 });
+    provider.getEvents = vi
+      .fn()
+      .mockRejectedValue(new Error("connection refused"));
+
+    await expect(indexer.scanBlocks(1, 10)).rejects.toThrow(
+      "connection refused",
+    );
+  });
+
+  it("skips malformed deposit events with insufficient keys", async () => {
+    const indexer = new EventIndexer(RPC, POOL);
+    const provider = (indexer as any).provider;
+    provider.getBlockLatestAccepted = vi
+      .fn()
+      .mockResolvedValue({ block_number: 10 });
+
+    provider.getEvents = vi.fn().mockImplementation((params: any) => {
+      const key = params.keys?.[0]?.[0] ?? "";
+      if (key.includes("9149d2")) {
+        return Promise.resolve({
+          events: [
+            {
+              // Malformed: only 1 key (needs >= 2)
+              block_number: 5,
+              transaction_hash: "0x1",
+              keys: ["0x9149d2123147c5f43d258257fef0b7b969db78269369ebcf5c3f201e16f2b"],
+              data: ["0x0", "0x1", "0x0", "0x0"],
+            },
+            {
+              // Malformed: only 2 data fields (needs >= 4)
+              block_number: 5,
+              transaction_hash: "0x2",
+              keys: [
+                "0x9149d2123147c5f43d258257fef0b7b969db78269369ebcf5c3f201e16f2b",
+                "0xAA",
+              ],
+              data: ["0x0", "0x1"],
+            },
+            {
+              // Valid
+              block_number: 5,
+              transaction_hash: "0x3",
+              keys: [
+                "0x9149d2123147c5f43d258257fef0b7b969db78269369ebcf5c3f201e16f2b",
+                "0xBB",
+              ],
+              data: ["0x0", "0x1", "0x0", "0x0"],
+            },
+          ],
+          continuation_token: undefined,
+        });
+      }
+      return Promise.resolve({ events: [], continuation_token: undefined });
+    });
+
+    const result = await indexer.scanBlocks(1, 10);
+    // Only the valid event should be parsed
+    expect(result.deposits).toBe(1);
+    expect(indexer.getDeposits()[0].commitment).toBe(0xbbn);
+  });
+
+  it("skips malformed nullifier events with insufficient keys", async () => {
+    const indexer = new EventIndexer(RPC, POOL);
+    const provider = (indexer as any).provider;
+    provider.getBlockLatestAccepted = vi
+      .fn()
+      .mockResolvedValue({ block_number: 10 });
+
+    provider.getEvents = vi.fn().mockImplementation((params: any) => {
+      const key = params.keys?.[0]?.[0] ?? "";
+      if (key.includes("2c70ef")) {
+        return Promise.resolve({
+          events: [
+            {
+              // Malformed: only 2 keys (needs >= 3)
+              block_number: 5,
+              transaction_hash: "0x1",
+              keys: [
+                "0x2c70efff30c4d1a69fdd061e0e5527d940507e69de9a79f29d0705e8ccc3d1a",
+                "0x111",
+              ],
+              data: [],
+            },
+          ],
+          continuation_token: undefined,
+        });
+      }
+      return Promise.resolve({ events: [], continuation_token: undefined });
+    });
+
+    const result = await indexer.scanBlocks(1, 10);
+    expect(result.nullifiers).toBe(0);
+    expect(indexer.getNullifiers().length).toBe(0);
+  });
+
+  it("accumulates duplicates when scanning overlapping ranges", async () => {
+    const indexer = new EventIndexer(RPC, POOL);
+    const provider = (indexer as any).provider;
+    provider.getBlockLatestAccepted = vi
+      .fn()
+      .mockResolvedValue({ block_number: 10 });
+
+    const depositEvent = {
+      block_number: 5,
+      transaction_hash: "0x1",
+      keys: [
+        "0x9149d2123147c5f43d258257fef0b7b969db78269369ebcf5c3f201e16f2b",
+        "0xDD",
+      ],
+      data: ["0x0", "0x64", "0x0", "0x0"],
+    };
+
+    provider.getEvents = vi.fn().mockImplementation((params: any) => {
+      const key = params.keys?.[0]?.[0] ?? "";
+      if (key.includes("9149d2")) {
+        return Promise.resolve({
+          events: [depositEvent],
+          continuation_token: undefined,
+        });
+      }
+      return Promise.resolve({ events: [], continuation_token: undefined });
+    });
+
+    await indexer.scanBlocks(1, 10);
+    await indexer.scanBlocks(1, 10); // Same range again
+    // Without dedup, deposits accumulate
+    expect(indexer.getDeposits().length).toBe(2);
+  });
+
+  it("scans in chunks when range exceeds chunkSize", async () => {
+    const indexer = new EventIndexer(RPC, POOL);
+    const provider = (indexer as any).provider;
+    provider.getBlockLatestAccepted = vi
+      .fn()
+      .mockResolvedValue({ block_number: 100 });
+
+    const fromBlocks: number[] = [];
+    provider.getEvents = vi.fn().mockImplementation((params: any) => {
+      fromBlocks.push(params.from_block.block_number);
+      return Promise.resolve({ events: [], continuation_token: undefined });
+    });
+
+    await indexer.scanBlocks(1, 100, 25);
+    // Should have called getEvents with from_block 1, 26, 51, 76 (deposits)
+    // and again for each chunk (nullifiers) = at least 8 calls
+    const depositFromBlocks = fromBlocks.filter(
+      (_, i) => i % 2 === 0,
+    );
+    expect(depositFromBlocks).toContain(1);
+    expect(fromBlocks.length).toBeGreaterThanOrEqual(8);
+  });
+});
