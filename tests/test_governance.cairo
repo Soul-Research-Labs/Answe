@@ -520,6 +520,34 @@ fn test_proxy_governor_can_set_emergency() {
 }
 
 #[test]
+#[should_panic(expected: "caller is not authorized to upgrade")]
+fn test_proxy_old_emergency_cannot_upgrade_after_rotation() {
+    let proxy = deploy_proxy(owner(), signer_a());
+
+    // Governor rotates emergency governor from signer_a -> signer_b.
+    start_cheat_caller_address(proxy.contract_address, owner());
+    proxy.set_emergency_governor(signer_b());
+
+    // Old emergency governor should lose upgrade authority immediately.
+    start_cheat_caller_address(proxy.contract_address, signer_a());
+    let fake_hash: ClassHash = 0xDEAD.try_into().unwrap();
+    proxy.upgrade(fake_hash);
+}
+
+#[test]
+fn test_proxy_new_emergency_can_upgrade_after_rotation() {
+    let proxy = deploy_proxy(owner(), signer_a());
+
+    start_cheat_caller_address(proxy.contract_address, owner());
+    proxy.set_emergency_governor(signer_b());
+
+    start_cheat_caller_address(proxy.contract_address, signer_b());
+    let ms_class = declare("MultiSig").unwrap().contract_class();
+    let new_hash: ClassHash = (*ms_class.class_hash).into();
+    proxy.upgrade(new_hash);
+}
+
+#[test]
 #[should_panic(expected: "caller is not governor")]
 fn test_proxy_non_governor_cannot_set_governor() {
     let proxy = deploy_proxy(owner(), signer_a());
