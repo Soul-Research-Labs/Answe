@@ -2,8 +2,6 @@
 
 **A unified ZK privacy protocol for the Starknet ecosystem** — combining privacy pool mechanics, stealth addresses, cross-chain bridging, and STARK-native cryptography into a single coherent protocol.
 
-StarkPrivacy port the core concepts from **ZAseon** (cross-chain ZK privacy middleware) and **Lumora** (privacy coprocessor with privacy pool + stealth addresses) into a Starknet-native implementation using **pure Cairo/STARK circuits**.
-
 ---
 
 ## Architecture

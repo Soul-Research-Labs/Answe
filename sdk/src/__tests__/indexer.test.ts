@@ -367,7 +367,9 @@ describe("EventIndexer reliability", () => {
               // Malformed: only 1 key (needs >= 2)
               block_number: 5,
               transaction_hash: "0x1",
-              keys: ["0x9149d2123147c5f43d258257fef0b7b969db78269369ebcf5c3f201e16f2b"],
+              keys: [
+                "0x9149d2123147c5f43d258257fef0b7b969db78269369ebcf5c3f201e16f2b",
+              ],
               data: ["0x0", "0x1", "0x0", "0x0"],
             },
             {
@@ -487,9 +489,7 @@ describe("EventIndexer reliability", () => {
     await indexer.scanBlocks(1, 100, 25);
     // Should have called getEvents with from_block 1, 26, 51, 76 (deposits)
     // and again for each chunk (nullifiers) = at least 8 calls
-    const depositFromBlocks = fromBlocks.filter(
-      (_, i) => i % 2 === 0,
-    );
+    const depositFromBlocks = fromBlocks.filter((_, i) => i % 2 === 0);
     expect(depositFromBlocks).toContain(1);
     expect(fromBlocks.length).toBeGreaterThanOrEqual(8);
   });

@@ -90,9 +90,9 @@ const relayer = new Relayer({
     privateKey: "0x<RELAYER_KEY>", // Use KMS on mainnet
   },
   contracts: { pool: "0x<POOL_ADDRESS>" },
-  minFee: 100n,       // Minimum fee to accept a job
-  maxPending: 50,      // Backpressure limit
-  maxRetries: 3,       // Retry failed transactions
+  minFee: 100n, // Minimum fee to accept a job
+  maxPending: 50, // Backpressure limit
+  maxRetries: 3, // Retry failed transactions
   storage: new SqliteJobStorage("./relayer-jobs.db"),
 });
 
@@ -122,7 +122,9 @@ const indexer = new EventIndexer(
 
 // Full scan from genesis
 const result = await indexer.scanBlocks(0);
-console.log(`Found ${result.deposits} deposits, ${result.nullifiers} nullifiers`);
+console.log(
+  `Found ${result.deposits} deposits, ${result.nullifiers} nullifiers`,
+);
 
 // Incremental scan (resumes from last scanned block)
 const incremental = await indexer.scanBlocks();
@@ -136,10 +138,10 @@ const incremental = await indexer.scanBlocks();
 
 ### Prover Backends
 
-| Backend | Usage | When to Use |
-|---------|-------|-------------|
-| `local` | `createProver("local")` | Development and testing only |
-| `stone` | `createProver("stone", { endpoint })` | Production — STARK prover |
+| Backend | Usage                                 | When to Use                           |
+| ------- | ------------------------------------- | ------------------------------------- |
+| `local` | `createProver("local")`               | Development and testing only          |
+| `stone` | `createProver("stone", { endpoint })` | Production — STARK prover             |
 | `s-two` | `createProver("s-two", { endpoint })` | Production — alternative STARK prover |
 
 All remote prover responses are strictly validated: felt252 range checks, proof structure validation, and explicit public input index mapping for withdraw proofs.

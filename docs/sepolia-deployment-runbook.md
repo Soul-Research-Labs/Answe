@@ -294,10 +294,10 @@ done
 
 ### Disaster Recovery
 
-| Scenario | Action |
-|---|---|
-| Exploitable bug found | Emergency governor calls `pause()` on UpgradeableProxy immediately. |
-| Governance key compromised | Rotate emergency governor via proxy; revoke compromised signer in MultiSig. |
-| RPC provider outage | Fail over to backup RPC (`STARKNET_RPC_URL` swap). Monitor and relayer pick up from last persisted state. |
-| Relayer DB corruption | Restore from last WAL checkpoint backup; relayer resumes from persisted job counter. |
-| Merkle tree corruption | Pause pool, snapshot state via indexer, investigate root cause before any upgrade. |
+| Scenario                   | Action                                                                                                    |
+| -------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Exploitable bug found      | Emergency governor calls `pause()` on UpgradeableProxy immediately.                                       |
+| Governance key compromised | Rotate emergency governor via proxy; revoke compromised signer in MultiSig.                               |
+| RPC provider outage        | Fail over to backup RPC (`STARKNET_RPC_URL` swap). Monitor and relayer pick up from last persisted state. |
+| Relayer DB corruption      | Restore from last WAL checkpoint backup; relayer resumes from persisted job counter.                      |
+| Merkle tree corruption     | Pause pool, snapshot state via indexer, investigate root cause before any upgrade.                        |
