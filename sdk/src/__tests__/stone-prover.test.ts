@@ -97,7 +97,30 @@ describe("StoneProver", () => {
 
     expect(result.success).toBe(true);
     expect(result.proof!.proofData).toEqual([0xaaan, 0xbbbn]);
+    expect(result.proof!.outputCommitments).toEqual([0xaaan, 0xbbbn]);
+    expect(result.proof!.fee).toBe(0n);
     expect(fetchSpy).toHaveBeenCalledOnce();
+  });
+
+  it("returns validation error when proof_data is malformed", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          proof_data: ["0x1", "not-a-felt"],
+          prover_time_ms: 12,
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const prover = new StoneProver({
+      endpoint: "http://stone:3000",
+      maxRetries: 0,
+    });
+    const result = await prover.prove(makeWitness());
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("proof_data[1]");
   });
 
   it("returns error on 4xx", async () => {
@@ -262,6 +285,21 @@ describe("S2Prover", () => {
     const result = await prover.prove(makeWitness());
     expect(result.success).toBe(false);
     expect(result.error).toContain("403");
+  });
+
+  it("returns error when submit response has no job_id", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ ok: true }), { status: 200 }),
+    );
+
+    const prover = new S2Prover({
+      endpoint: "http://s2:3000",
+      maxRetries: 0,
+    });
+
+    const result = await prover.prove(makeWitness());
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("missing job_id");
   });
 
   it("healthCheck returns true on 200", async () => {

@@ -508,6 +508,32 @@ describe("generateWithdrawProofAsync", () => {
     expect(result.proof!.exitValue).toBe(400n);
   });
 
+  it("preserves non-zero assetId in withdraw witness public inputs", async () => {
+    const nm = new NoteManager();
+    const tree = new ClientMerkleTree();
+    const note0 = makeNote(nm, 900n, tree, 7n);
+    const note1 = makeNote(nm, 600n, tree, 7n);
+    const backend = makeMockBackend();
+
+    const result = await generateWithdrawProofAsync(
+      {
+        spendingKey: SK,
+        inputNotes: [note0, note1],
+        exitValue: 500n,
+        assetId: 7n,
+        chainId: CHAIN_ID,
+        appId: APP_ID,
+        tree,
+      },
+      backend,
+    );
+
+    expect(result.success).toBe(true);
+    expect(backend.lastWitness).not.toBeNull();
+    // Public input layout: [root, nf0, nf1, changeCm, exitValue, assetId, fee]
+    expect(backend.lastWitness!.publicInputs[5]).toBe(7n);
+  });
+
   it("propagates backend failure on withdraw", async () => {
     const nm = new NoteManager();
     const tree = new ClientMerkleTree();

@@ -37,8 +37,8 @@ Target commit message:
 
 ### Phase 1 - Proof and Cryptography Hardening
 
-- [ ] Harden remote prover response validation and envelope mapping.
-- [ ] Add prover compatibility and failure-path tests.
+- [x] Harden remote prover response validation and envelope mapping.
+- [x] Add prover compatibility and failure-path tests.
 - [ ] Strengthen stealth shared-secret derivation path.
 - [ ] Add stealth regression/property tests.
 
