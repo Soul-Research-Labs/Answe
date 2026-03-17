@@ -47,6 +47,44 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 OUTPUT_FILE="$SCRIPT_DIR/deployments-${NETWORK_NAME}.json"
 
+# ─── Mainnet safety gate ──────────────────────────────────────
+
+if [[ "$NETWORK_NAME" == "mainnet" ]]; then
+  echo ""
+  echo "  ╔═══════════════════════════════════════════════════╗"
+  echo "  ║         ⚠️  MAINNET DEPLOYMENT WARNING ⚠️          ║"
+  echo "  ╚═══════════════════════════════════════════════════╝"
+  echo ""
+  echo "  You are about to deploy to Starknet MAINNET."
+  echo "  This will spend real ETH and is not easily reversible."
+  echo ""
+
+  # Non-interactive mode (CI): require explicit MAINNET_CONFIRM=yes
+  if [[ "${MAINNET_CONFIRM:-}" == "yes" ]]; then
+    echo "  MAINNET_CONFIRM=yes detected — proceeding."
+  elif [[ -t 0 ]]; then
+    # Interactive terminal — prompt
+    read -rp "  Type 'DEPLOY MAINNET' to continue: " confirm
+    if [[ "$confirm" != "DEPLOY MAINNET" ]]; then
+      echo "  Aborted."
+      exit 1
+    fi
+  else
+    echo "  ✗ Non-interactive mode requires MAINNET_CONFIRM=yes"
+    exit 1
+  fi
+  echo ""
+fi
+
+# ─── Existing deployment check ────────────────────────────────
+
+if [[ -f "$OUTPUT_FILE" ]]; then
+  echo "  ⚠ Existing deployment manifest found: $OUTPUT_FILE"
+  echo "    A previous deployment to $NETWORK_NAME already exists."
+  echo "    The manifest will be overwritten if you proceed."
+  echo ""
+fi
+
 echo "═══════════════════════════════════════════════════════"
 echo "  StarkPrivacy Deployment — $NETWORK_NAME"
 echo "═══════════════════════════════════════════════════════"

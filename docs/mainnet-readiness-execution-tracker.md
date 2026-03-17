@@ -75,7 +75,7 @@ Target commit messages:
 - [x] Add governance e2e proposal -> timelock -> execute coverage.
 - [x] Complete governance operations documentation.
 - [x] Complete deployment and monitoring runbook gaps.
-- [ ] Add script safety checks and runbook validation notes.
+- [x] Add script safety checks and runbook validation notes.
 
 Target commit messages:
 

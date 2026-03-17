@@ -77,6 +77,27 @@ echo "════════════════════════�
 echo "  StarkPrivacy Governance Setup — $NETWORK_NAME"
 echo "═══════════════════════════════════════════════════════"
 echo ""
+
+# ─── Mainnet safety gate ──────────────────────────────────────
+
+if [[ "$NETWORK_NAME" == "mainnet" ]]; then
+  echo "  ⚠ MAINNET governance setup — ownership transfers are irreversible."
+  echo ""
+  if [[ "${MAINNET_CONFIRM:-}" == "yes" ]]; then
+    echo "  MAINNET_CONFIRM=yes detected — proceeding."
+  elif [[ -t 0 ]]; then
+    read -rp "  Type 'CONFIRM GOVERNANCE' to continue: " confirm
+    if [[ "$confirm" != "CONFIRM GOVERNANCE" ]]; then
+      echo "  Aborted."
+      exit 1
+    fi
+  else
+    echo "  ✗ Non-interactive mode requires MAINNET_CONFIRM=yes"
+    exit 1
+  fi
+  echo ""
+fi
+
 echo "  Pool          : $POOL_ADDR"
 echo "  Timelock      : $TIMELOCK_ADDR"
 echo "  MultiSig      : $MULTISIG_ADDR"
