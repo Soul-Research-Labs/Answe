@@ -36,6 +36,18 @@ describe("stealth addresses", () => {
       expect(s1.ephemeralPubKey).not.toBe(s2.ephemeralPubKey);
       expect(s1.ownerHash).not.toBe(s2.ownerHash);
     });
+
+    it("rejects invalid recipient meta-address keys", () => {
+      const recipient = KeyManager.fromSpendingKey(42n);
+      const meta = makeMetaAddress(recipient);
+
+      expect(() =>
+        deriveStealthAddress({
+          ...meta,
+          viewingPubKey: 0n,
+        }),
+      ).toThrow(/viewing public key/);
+    });
   });
 
   describe("tryScanNote", () => {
@@ -86,6 +98,20 @@ describe("stealth addresses", () => {
         meta.spendingPubKey,
         stealth.ownerHash,
       );
+      expect(found).toBe(false);
+    });
+
+    it("fails closed on malformed ephemeral public key", () => {
+      const recipient = KeyManager.fromSpendingKey(42n);
+      const meta = makeMetaAddress(recipient);
+
+      const found = tryScanNote(
+        0n,
+        recipient.viewingKey,
+        meta.spendingPubKey,
+        123n,
+      );
+
       expect(found).toBe(false);
     });
   });

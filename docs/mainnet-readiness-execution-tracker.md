@@ -39,8 +39,8 @@ Target commit message:
 
 - [x] Harden remote prover response validation and envelope mapping.
 - [x] Add prover compatibility and failure-path tests.
-- [ ] Strengthen stealth shared-secret derivation path.
-- [ ] Add stealth regression/property tests.
+- [x] Strengthen stealth shared-secret derivation path.
+- [x] Add stealth regression/property tests.
 
 Target commit messages:
 
