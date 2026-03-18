@@ -3,6 +3,16 @@
 Measured via `snforge test` on Cairo 2.16.0 / snforge 0.57.0.
 All values are approximate L2 gas units.
 
+## Methodology
+
+- **Tool**: `snforge test` with gas reporting enabled.
+- **Environment**: Cairo 2.16.0, snforge 0.57.0, dev profile.
+- **L2 Gas**: Execution gas consumed by the Starknet VM.
+- **L1 Data Gas**: Calldata / state-diff gas charged for L1 data availability.
+- **Note**: Values are per-test-case measurements and may vary slightly with
+  different compiler optimizations or contract sizes. Production gas may differ
+  due to sequencer overhead and storage proofs.
+
 ## Core Pool Operations
 
 | Operation                              |     L2 Gas | L1 Data Gas |
@@ -53,7 +63,10 @@ All values are approximate L2 gas units.
 | Check withdrawal (allowed) | ~334,760 |        ~192 |
 | Check transfer             | ~330,370 |        ~192 |
 
-## Circuit Verification (Off-chain)
+## Circuit Verification (On-Chain Proof Verification)
+
+These measure the on-chain cost of verifying ZK proofs via the `MockVerifier`.
+Production costs with `StarkVerifier` may differ.
 
 | Operation                   |     L2 Gas |
 | --------------------------- | ---------: |
@@ -79,3 +92,27 @@ All values are approximate L2 gas units.
 | MultiSig `set_timelock`                                |   ~897,050 |      ~1,248 |
 | MultiSig `forward_to_timelock`                         | ~2,585,243 |      ~2,592 |
 | Full governance flow (propose→approve→forward→execute) | ~3,245,945 |      ~2,592 |
+
+---
+
+## Cost Estimates (at Typical Gas Prices)
+
+The following estimates use representative Starknet gas prices for context.
+Actual costs depend on network conditions.
+
+| Assumption            | Value                                |
+| --------------------- | ------------------------------------ |
+| L2 gas price          | 25 gwei (0.000000025 ETH per unit)   |
+| L1 data gas price     | 50 gwei (0.00000005 ETH per unit)    |
+| ETH price             | $3,000                               |
+
+| Operation    | Est. Cost (ETH) | Est. Cost (USD) |
+| ------------ | ---------------:| ---------------:|
+| Deposit      |       ~0.069    |         ~$0.21  |
+| Transfer     |       ~0.171    |         ~$0.51  |
+| Withdraw     |       ~0.146    |         ~$0.44  |
+| Full cycle   |       ~0.224    |         ~$0.67  |
+| Governance   |       ~0.081    |         ~$0.24  |
+
+> **Disclaimer**: These are rough estimates for planning purposes only.
+> Always check current gas prices on the Starknet block explorer.

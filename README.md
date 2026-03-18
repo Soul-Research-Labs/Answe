@@ -1,6 +1,11 @@
 # StarkPrivacy
 
+[![CI](https://github.com/Soul-Research-Labs/Answe/actions/workflows/ci.yml/badge.svg)](https://github.com/Soul-Research-Labs/Answe/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 **A unified ZK privacy protocol for the Starknet ecosystem** — combining privacy pool mechanics, stealth addresses, cross-chain bridging, and STARK-native cryptography into a single coherent protocol.
+
+> **New here?** StarkPrivacy lets users deposit tokens into a shielded pool, perform private transfers using zero-knowledge STARK proofs, withdraw to any address without revealing the sender, and bridge notes across L1/L2/appchains — all without a trusted setup.
 
 ---
 
@@ -142,7 +147,7 @@ starkprivacy/
 | ---------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------- |
 | **Scarb**              | ≥ 2.16.0 | `curl --proto '=https' --tlsv1.2 -sSf https://docs.swmansion.com/scarb/install.sh \| sh`                               |
 | **Starknet Foundry**   | ≥ 0.57.0 | `curl -L https://raw.githubusercontent.com/foundry-rs/starknet-foundry/master/scripts/install.sh \| sh && snfoundryup` |
-| **Node.js**            | ≥ 18.0   | https://nodejs.org                                                                                                     |
+| **Node.js**            | ≥ 20.0   | https://nodejs.org                                                                                                     |
 | **starknet-devnet-rs** | latest   | `cargo install starknet-devnet` (for integration tests)                                                                |
 
 ---
@@ -175,7 +180,7 @@ Compiled artifacts are written to `target/dev/`:
 ### 2. Run Cairo Tests
 
 ```bash
-# Run all workspace tests (223 tests, incl. 15 fuzz × 256 runs)
+# Run all workspace tests (237 tests, incl. 15 fuzz × 256 runs)
 snforge test --workspace
 
 # Run only integration tests
@@ -196,7 +201,7 @@ npm install
 # Build TypeScript
 npm run build
 
-# Run tests (197+ passing)
+# Run tests (254 passing)
 npm test
 ```
 
@@ -331,15 +336,16 @@ const epoch = await client.getCurrentEpoch();
 
 | Suite                              | Count     | Command                                         |
 | ---------------------------------- | --------- | ----------------------------------------------- |
-| Cairo unit + integration           | 223       | `snforge test --workspace`                      |
+| Cairo unit + integration           | 237       | `snforge test --workspace`                      |
 | — governance (Timelock + MultiSig) | 25        | included above                                  |
-| — cross-chain (Kakarot + Madara)   | 28        | included above                                  |
+| — cross-chain (Kakarot + Madara)   | 30        | included above                                  |
 | — proxy (UpgradeableProxy)         | 9         | included above                                  |
 | — fuzz / property-based            | 15 (×256) | included above                                  |
-| SDK unit tests                     | 197+      | `cd sdk && npm test`                            |
-| SDK indexer + mock integration     | 19        | included above                                  |
+| SDK unit tests                     | 254       | `cd sdk && npm test`                            |
+| SDK CLI + indexer reliability      | 67        | included above                                  |
 | SDK integration (devnet)           | 9         | `DEVNET_URL=http://127.0.0.1:5050/rpc npm test` |
-| **Total**                          | **420+**  |                                                 |
+| EVM bridge (Foundry)               | 25        | `cd contracts/evm && forge test`                |
+| **Total**                          | **516+**  |                                                 |
 
 ### Running Integration Tests
 
@@ -447,7 +453,46 @@ DEVNET_URL=http://127.0.0.1:5050/rpc POOL_ADDRESS=0x... npm test
 - [x] Phase 11: Governance wiring — MultiSig→Timelock→cross-contract execution, calldata verification
 - [x] Phase 12: SDK production hardening — real prover integration, retry logic, nonce management, bias fixes
 - [x] Phase 13: Testing & quality — 15 fuzz tests (256 runs), 20 SDK edge-case tests, 420+ total tests
-- [~] Phase 14: Formal verification & audit (29 invariants spec'd — [docs/formal-invariants.md](docs/formal-invariants.md), TLA+ specs — [docs/formal-specs.md](docs/formal-specs.md))
+- [ ] Phase 14: Formal verification & audit (29 invariants spec'd — [docs/formal-invariants.md](docs/formal-invariants.md), TLA+ specs — [docs/formal-specs.md](docs/formal-specs.md))
+- [x] Phase 15: Mainnet readiness — prover/stealth/relayer hardening, deployment runbooks, script safety gates
+
+---
+
+## Documentation
+
+| Document                                                  | Description                                                        |
+| --------------------------------------------------------- | ------------------------------------------------------------------ |
+| [Protocol Specification](docs/protocol-spec.md)           | Cryptographic primitives, circuit constraints, contract interfaces |
+| [Formal Invariants](docs/formal-invariants.md)            | 29 named invariants with verification status                       |
+| [Formal Specs (TLA+)](docs/formal-specs.md)               | Machine-checkable specifications for critical properties           |
+| [Security Checklist](docs/security-checklist.md)          | Full-stack security self-assessment                                |
+| [Incident Response](docs/incident-response.md)            | Severity levels, playbooks, key rotation procedures                |
+| [Governance Operations](docs/governance-operations.md)    | MultiSig → Timelock operational workflow                           |
+| [Deployment Runbook](docs/sepolia-deployment-runbook.md)  | Step-by-step deployment with mainnet promotion checklist           |
+| [Gas Benchmarks](docs/gas-benchmarks.md)                  | L2/L1 gas measurements for all operations                          |
+| [Readiness Report](docs/readiness-verification-report.md) | Final verification matrix results                                  |
+| [SDK Guide](sdk/README.md)                                | Operator integration guide for relayer, indexer, CLI               |
+
+---
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for vulnerability disclosure policy and contact information.
+
+**Do NOT open public issues for security vulnerabilities.**
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions, code style, and PR process.
+
+---
+
+## License
+
+[MIT](LICENSE) — Copyright (c) 2025-2026 Soul Research Labs
+
 - [x] Phase 15: Production hardening — StarkVerifier on-chain, felt252 validation, tx confirmation, relayer persistence
 - [ ] Phase 16: Mainnet deployment — real governance signers, production prover, monitoring
 

@@ -5,9 +5,9 @@
 ### Build Verification
 
 - [ ] `scarb build` succeeds with zero warnings
-- [ ] `snforge test` — all Cairo tests pass (currently 233)
+- [ ] `snforge test` — all Cairo tests pass (currently 237)
 - [ ] `npx tsc --noEmit` — SDK compiles cleanly
-- [ ] `npx vitest run` — all SDK tests pass (currently 230)
+- [ ] `npx vitest run` — all SDK tests pass (currently 254)
 - [ ] CI pipeline green on `main` branch
 
 ### Account Setup
@@ -209,6 +209,7 @@ export RPC_URL="https://starknet-sepolia.public.blastapi.io/rpc/v0_7"
 ## Post-Deployment Verification Checklist
 
 - [ ] Deployment manifest exists with all 13 contracts
+- [ ] `forge test` — all EVM tests pass (currently 25)
 - [ ] All contracts respond to read calls
 - [ ] MultiSig timelock is set to Timelock contract
 - [ ] PrivacyPool owner = Timelock
@@ -301,3 +302,40 @@ done
 | RPC provider outage        | Fail over to backup RPC (`STARKNET_RPC_URL` swap). Monitor and relayer pick up from last persisted state. |
 | Relayer DB corruption      | Restore from last WAL checkpoint backup; relayer resumes from persisted job counter.                      |
 | Merkle tree corruption     | Pause pool, snapshot state via indexer, investigate root cause before any upgrade.                        |
+
+---
+
+## Troubleshooting
+
+### `scarb build` Fails
+
+| Error                              | Fix                                                                |
+| ---------------------------------- | ------------------------------------------------------------------ |
+| `unresolved import`                | Run `scarb fetch` to download dependencies                         |
+| Version mismatch                   | Ensure `scarb --version` outputs 2.16.0; use `asdf` or `scarb-install` |
+| `contract_class.json` not found    | Clean and rebuild: `rm -rf target && scarb build`                  |
+
+### `sncast deploy` Fails
+
+| Error                              | Fix                                                                |
+| ---------------------------------- | ------------------------------------------------------------------ |
+| `Account not found`                | Run `sncast account create` and `sncast account deploy` first      |
+| `Insufficient funds`               | Fund deployer with ≥0.5 ETH from Sepolia faucet                   |
+| `Class hash already declared`      | Normal if redeploying — deploy the contract, skip declare          |
+| `Transaction reverted`             | Check constructor args match contract expectations                 |
+
+### Monitor Alerts After Deployment
+
+| Alert                              | Likely Cause                                                       |
+| ---------------------------------- | ------------------------------------------------------------------ |
+| `Epoch DECREASED`                  | Expected on fresh deploy if epoch starts at 0                      |
+| `Merkle root is zero`              | Normal — no deposits yet. Alert resolves after first deposit       |
+| `RPC node unreachable`             | Check `STARKNET_RPC_URL` is correct and network is up              |
+
+### SDK Errors
+
+| Error                              | Fix                                                                |
+| ---------------------------------- | ------------------------------------------------------------------ |
+| `Cannot find module`               | Run `npm ci && npm run build` in `sdk/`                            |
+| `RPC timeout`                      | Check RPC URL; Sepolia public endpoints may rate-limit             |
+| `Not a known root`                 | Deposit to populate the root history, then retry                   |

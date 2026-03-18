@@ -1,6 +1,6 @@
 # StarkPrivacy Formal Invariants & Verification Spec
 
-> Revision 1.0 — March 2026
+> Revision 1.1 — March 2026
 
 This document defines the formal invariants that must hold for correctness
 of the StarkPrivacy protocol. These are the properties that a formal
@@ -258,7 +258,75 @@ $$\text{start}() \text{ while } \text{locked} = \text{true} \implies \text{rever
 
 ---
 
-## 10. Verification Status
+## 10. Fee Invariants
+
+### INV-F1: Fee Bound
+
+The fee charged on any transfer or withdrawal never exceeds the protocol maximum:
+
+$$\text{fee} \leq \text{MAX\_FEE}$$
+
+**Verified by**: Circuit constraint (fee is a public input verified by the proof).
+
+### INV-F2: Fee Conservation
+
+Fees are accounted for in the value conservation equation — they do not create or destroy value:
+
+$$v_{in_0} + v_{in_1} = v_{out_0} + v_{out_1} + \text{fee}$$
+
+**Verified by**: `test_transfer_value_conservation`, formal spec §8 in `formal-specs.md`.
+
+### INV-F3: Gas Price Factor Bound (Kakarot)
+
+The EVM gas price factor is always positive and never exceeds MAX_GAS_PRICE_FACTOR:
+
+$$0 < \text{gas\_price\_factor} \leq 1{,}000{,}000 \text{ BPS}$$
+
+**Verified by**: `test_set_gas_price_factor_zero_reverts`, `test_set_gas_price_factor_exceeds_max_reverts`.
+
+---
+
+## 11. Pause Semantics Invariants
+
+### INV-P1: Pause Blocks Mutations
+
+When a contract is paused, all mutating operations (deposit, transfer, withdraw, lock) must revert:
+
+$$\text{paused} = \text{true} \implies \forall \text{mutating\_op}: \text{revert}$$
+
+**Verified by**: `test_evm_deposit_while_paused_reverts`, `test_evm_transfer_while_paused_reverts`, `test_evm_withdraw_while_paused_reverts`.
+
+### INV-P2: Pause Preserves Views
+
+When paused, read-only (view) functions remain accessible:
+
+$$\text{paused} = \text{true} \implies \text{get\_root(), get\_leaf\_count()} \text{ succeed}$$
+
+**Verified by**: `test_view_functions_work_when_paused`.
+
+---
+
+## 12. Upgrade Safety Invariants
+
+### INV-U1: Storage Layout Preservation
+
+A proxy upgrade must not alter the storage layout of existing state variables. New variables may only be appended:
+
+$$\forall i < |\text{slots}_{\text{old}}|: \text{slot}_i^{\text{new}} = \text{slot}_i^{\text{old}}$$
+
+**Verified by**: Manual review during upgrade approval; class hash validation in deployment scripts.
+
+### INV-U2: Governance-Gated Upgrades
+
+Contract upgrades can only be executed through the governance pipeline (MultiSig → Timelock → Proxy):
+
+$$\text{upgrade}(\text{new\_class\_hash}) \text{ succeeds} \implies \text{caller} = \text{governor} \lor \text{caller} = \text{emergency\_governor}$$
+
+**Verified by**: `test_full_governance_flow`, proxy access control tests.
+
+---
+
+## 13. Verification Status
 
 | Invariant | Fuzz     | Unit | Formal | Status                 |
 | --------- | -------- | ---- | ------ | ---------------------- |
@@ -291,12 +359,19 @@ $$\text{start}() \text{ while } \text{locked} = \text{true} \implies \text{rever
 | INV-S1    | —        | ✅   | ⬜     | Tested                 |
 | INV-S2    | —        | —    | ⬜     | Assumed (ECDH)         |
 | INV-RE1   | —        | ✅   | 📝     | Tested + spec'd        |
+| INV-F1    | —        | ✅   | 📝     | Tested + spec'd        |
+| INV-F2    | —        | ✅   | 📝     | Tested + spec'd        |
+| INV-F3    | —        | ✅   | 📝     | Tested + spec'd        |
+| INV-P1    | —        | ✅   | 📝     | Tested + spec'd        |
+| INV-P2    | —        | ✅   | ⬜     | Tested                 |
+| INV-U1    | —        | —    | ⬜     | Manual review          |
+| INV-U2    | —        | ✅   | 📝     | Tested + spec'd        |
 
 **Legend**: ✅ = Verified, 📝 = Formal spec + proof sketch (see `formal-specs.md`), ⬜ = Pending
 
 ---
 
-## 11. Recommended Formal Verification Targets
+## 14. Recommended Formal Verification Targets
 
 Priority 1 (critical):
 

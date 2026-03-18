@@ -1,6 +1,6 @@
 # StarkPrivacy Security Audit Checklist
 
-> Pre-audit self-assessment — June 2025
+> Pre-audit self-assessment — March 2026
 
 ## Legend
 
@@ -188,15 +188,39 @@
 | Compliance                                 | 10       | ✅             |
 | Security components                        | 5        | ✅             |
 | Governance (timelock, multisig, wiring)    | 25       | ✅             |
+| Cross-chain integration                    | 16       | ✅             |
+| Madara integration                         | 12       | ✅             |
 | Fuzz / property-based (×256 each)          | 15       | ✅             |
+| Cairo subtotal                             | **237**  | **0 failures** |
 | SDK (crypto, keys, notes, prover, relayer) | 154      | ✅             |
 | SDK indexer (mock-based)                   | 19       | ✅             |
-| **Total**                                  | **334+** | **0 failures** |
+| SDK CLI / stealth / metadata               | 81       | ✅             |
+| SDK subtotal                               | **254**  | **0 failures** |
+| EVM (Foundry)                              | 25       | ✅             |
+| **Total**                                  | **516+** | **0 failures** |
 
 - [x] Property-based / fuzz testing (15 fuzz tests × 256 runs each)
 - [x] Formal verification specifications with proof sketches (`docs/formal-specs.md`)
 - [ ] Mechanized formal proofs (Lean 4 / Coq)
 - [ ] Mainnet dry-run with production parameters
+
+## 11. Supply Chain Security
+
+- [x] Cairo toolchain pinned: `scarb 2.16.0`, `snforge 0.57.0`
+- [x] Node.js dependencies managed via `package-lock.json`
+- [x] Solidity dependencies pinned via `foundry.toml` remappings
+- [ ] Dependency audit (`npm audit`, `cargo audit`) integrated into CI
+- [ ] SBOM (Software Bill of Materials) generated for releases
+- [ ] GitHub Actions pinned to commit SHA (not mutable tags)
+
+## 12. Upgrade Safety
+
+- [x] Proxy upgrade gated by governor role (Timelock or emergency governor)
+- [x] Class hash validated post-deployment (see `sepolia-deployment-runbook.md`)
+- [x] Storage layout documented (no slot collisions across upgrades)
+- [ ] Automated storage layout diff check in CI
+- [ ] Upgrade simulation on devnet before mainnet execution
+- [ ] Rollback procedure tested (emergency governor → revert to previous class hash)
 
 ---
 

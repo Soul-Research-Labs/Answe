@@ -84,7 +84,32 @@ sncast invoke \
   --function emergency_pause
 ```
 
-### Step 2: Investigate
+### Step 2: Preserve Evidence
+
+Before making any state changes, capture a forensic snapshot:
+
+```bash
+# Snapshot current block number
+BLOCK=$(starkli block-number --rpc $STARKNET_RPC_URL)
+echo "Forensic snapshot at block: $BLOCK" >> incident.log
+
+# Export all pool events from suspect block range
+starkli events --from-block $((BLOCK - 100)) --to-block $BLOCK \
+  --contract $POOL_ADDRESS \
+  --rpc $STARKNET_RPC_URL > forensic-events-$BLOCK.json
+
+# Export current contract state
+for CONTRACT in $POOL_ADDRESS $BRIDGE_ROUTER_ADDRESS $EPOCH_MANAGER_ADDRESS $KAKAROT_ADAPTER_ADDRESS; do
+  starkli call $CONTRACT get_root --rpc $STARKNET_RPC_URL >> state-snapshot-$BLOCK.log 2>&1 || true
+done
+
+# Preserve relayer job queue
+cp relayer-jobs.db "relayer-jobs-$BLOCK.db.bak" 2>/dev/null || true
+```
+
+> **Important**: Never overwrite forensic evidence. Use timestamped or block-numbered filenames.
+
+### Step 3: Investigate
 
 1. **Collect evidence**:
 
@@ -110,13 +135,13 @@ sncast invoke \
 
 3. **Document timeline** in the incident channel
 
-### Step 3: Remediate
+### Step 4: Remediate
 
 - **If exploit**: Deploy patch, upgrade proxy (see J3), unpause
 - **If infrastructure**: Restore RPC, check block production, verify state
 - **If false alarm**: Retune monitoring thresholds, update runbook
 
-### Step 4: Recover
+### Step 5: Recover
 
 1. Verify all invariants hold (run `scripts/monitor.sh --once`)
 2. Unpause contracts in reverse order (pool → bridge → Kakarot)
@@ -196,6 +221,49 @@ sncast invoke \
 3. Notify users if frontend is affected
 4. Coordinate with RPC provider for resolution
 
+### Scenario F: Proxy Upgrade Regression
+
+**Trigger**: Contract behaves unexpectedly after a governance-approved proxy upgrade.
+
+1. **Pause** all contracts immediately (Step 1)
+2. Verify the deployed class hash matches the intended upgrade:
+   ```bash
+   starkli class-hash-at $POOL_ADDRESS --rpc $STARKNET_RPC_URL
+   # Compare with expected class hash from the governance proposal
+   ```
+3. Check proxy governance roles are intact:
+   ```bash
+   starkli call $PROXY_ADDRESS get_governor --rpc $STARKNET_RPC_URL
+   starkli call $PROXY_ADDRESS get_emergency_governor --rpc $STARKNET_RPC_URL
+   ```
+4. If class hash is wrong → unauthorized upgrade, treat as **P0 governance compromise**
+5. If class hash is correct but behavior is wrong → rollback by upgrading to previous class hash through emergency governor
+6. Run full invariant checks (`scripts/monitor.sh --once`) before unpausing
+
+### Scenario G: Confirmed Fund Loss
+
+**Trigger**: On-chain evidence shows value was extracted without a valid ZK proof, or pool balance is lower than expected.
+
+1. **Pause** all contracts immediately — this is P0
+2. **Preserve evidence** (Step 2) — do NOT interact with the exploit path
+3. Capture the exploit transaction(s):
+   ```bash
+   starkli tx $EXPLOIT_TX_HASH --rpc $STARKNET_RPC_URL > exploit-tx.json
+   ```
+4. Compute expected pool balance from deposit/withdraw event history:
+   ```bash
+   # Sum all deposit events
+   starkli events --from-block 0 --contract $POOL_ADDRESS \
+     --keys 0x<DEPOSIT_EVENT_KEY> --rpc $STARKNET_RPC_URL > all-deposits.json
+   # Sum all withdraw events
+   starkli events --from-block 0 --contract $POOL_ADDRESS \
+     --keys 0x<WITHDRAW_EVENT_KEY> --rpc $STARKNET_RPC_URL > all-withdrawals.json
+   ```
+5. Quantify the loss: `expected_balance - actual_balance = loss`
+6. Engage external security firm for independent audit of the exploit
+7. Communicate to users with full transparency (see Communication Templates)
+8. Do NOT unpause until the root cause is patched and independently reviewed
+
 ---
 
 ## Key Rotation Procedures
@@ -214,31 +282,31 @@ sncast invoke \
   --url $STARKNET_RPC_URL \
   --account $EXISTING_SIGNER \
   --contract-address $MULTISIG_ADDRESS \
-  --function submit_transaction \
+  --function propose \
   --calldata $MULTISIG_ADDRESS add_signer $NEW_SIGNER_ADDRESS
 
-# Step 2: Collect M-of-N confirmations from existing signers
+# Step 2: Collect M-of-N approvals from existing signers
 sncast invoke \
   --url $STARKNET_RPC_URL \
   --account $SIGNER_2 \
   --contract-address $MULTISIG_ADDRESS \
-  --function confirm_transaction \
+  --function approve \
   --calldata $TX_ID
 
-# Step 3: Execute the add-signer transaction
+# Step 3: Forward the approved proposal to Timelock (or execute directly)
 sncast invoke \
   --url $STARKNET_RPC_URL \
   --account $EXISTING_SIGNER \
   --contract-address $MULTISIG_ADDRESS \
-  --function execute_transaction \
+  --function forward_to_timelock \
   --calldata $TX_ID
 
-# Step 4: Remove the old signer via the same propose/confirm/execute flow
+# Step 4: Remove the old signer via the same propose/approve/forward flow
 sncast invoke \
   --url $STARKNET_RPC_URL \
   --account $EXISTING_SIGNER \
   --contract-address $MULTISIG_ADDRESS \
-  --function submit_transaction \
+  --function propose \
   --calldata $MULTISIG_ADDRESS remove_signer $OLD_SIGNER_ADDRESS
 ```
 
@@ -353,9 +421,9 @@ Use these procedures when a key is known or suspected compromised (P0/P1).
      --url $STARKNET_RPC_URL \
      --account $SAFE_SIGNER \
      --contract-address $MULTISIG_ADDRESS \
-     --function submit_transaction \
+     --function propose \
      --calldata $MULTISIG_ADDRESS remove_signer $COMPROMISED_SIGNER
-   # Collect M-1 confirmations and execute
+   # Collect M-1 approvals and forward to timelock
    ```
 2. If the compromised signer has pending proposals, cancel them before they reach Timelock execution
 3. Add a replacement signer

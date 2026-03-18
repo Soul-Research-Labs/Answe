@@ -1,5 +1,7 @@
 # StarkPrivacy — Formal Verification Specifications
 
+> Revision 1.1 — March 2026
+>
 > Companion to `formal-invariants.md`. Contains machine-checkable specifications
 > in TLA⁺-style pseudocode for critical protocol invariants.
 
@@ -21,7 +23,7 @@ VARIABLES
 
 CONSTANTS
   P,               \* Field prime: 2^251 + 17*2^192 + 1
-  TREE_DEPTH,      \* 20
+  TREE_DEPTH,      \* 32
   ROOT_HISTORY_SIZE \* 100
 ```
 
@@ -209,7 +211,93 @@ EpochRootDeterminism ==
 
 ---
 
-## 7. Access Control Model
+## 7. Liveness Properties
+
+While safety properties (above) prevent bad things from happening, liveness
+properties ensure that progress is eventually made.
+
+```tla
+\* ─── Epoch Liveness ──────────────────────────────────────
+\* If the operator is live, epochs eventually advance.
+EpochLiveness ==
+  \* Weak fairness: if advance_epoch is continuously enabled,
+  \* it is eventually taken.
+  WF_vars(AdvanceEpoch) =>
+    <>(epoch' > epoch)
+
+\* ─── Deposit Liveness ────────────────────────────────────
+\* A deposit that passes validation is eventually included in the tree.
+DepositLiveness ==
+  \A cm, amount, asset :
+    /\ amount > 0
+    /\ next_index < 2^TREE_DEPTH
+    => <>(cm \in Range(tree))
+
+\* ─── Withdrawal Liveness ─────────────────────────────────
+\* A valid withdrawal proof is eventually processed (assuming
+\* relayer liveness and sequencer liveness).
+WithdrawLiveness ==
+  \A proof, recipient, amount :
+    /\ VerifyProof(proof, ...)
+    /\ RelayerLive
+    /\ SequencerLive
+    => <>(BalanceOf(recipient) = BalanceOf(recipient) + amount)
+
+\* ─── Bridge Liveness ─────────────────────────────────────
+\* A locked commitment is eventually receivable on the destination
+\* chain, assuming the operator syncs the epoch root.
+BridgeLiveness ==
+  \A (cm, dest) \in locked_commitments :
+    OperatorSyncsRoot(dest) =>
+      <>(cm \in Range(dest.tree))
+```
+
+> **Note**: Liveness properties depend on environmental assumptions (operator,
+> relayer, sequencer availability). They are useful for reasoning about
+> protocol completeness but cannot be enforced on-chain alone.
+
+---
+
+## 8. Fee Model Specification
+
+```tla
+\* ─── Fee Constants ───────────────────────────────────────
+CONSTANTS
+  MAX_FEE,            \* Maximum fee in felt252 (protocol parameter)
+  PROTOCOL_FEE_BPS,   \* Basis points for protocol fee (e.g., 10 = 0.1%)
+  MAX_GAS_FACTOR      \* Maximum gas price factor in BPS (1,000,000 = 100x)
+
+\* ─── Fee Computation (EVM path) ──────────────────────────
+EstimateEvmFee(amount, gas) ==
+  LET protocol_fee == (amount * PROTOCOL_FEE_BPS) \div 10000
+      gas_premium  == (gas * gas_price_factor) \div 10000
+  IN  (protocol_fee, gas_premium, protocol_fee + gas_premium)
+
+\* ─── Fee Invariants ──────────────────────────────────────
+\* INV-F1: Total fee never exceeds MAX_FEE
+FeeBound ==
+  \A transfer :
+    transfer.fee <= MAX_FEE
+
+\* INV-F2: Fee is included in the conservation equation
+FeeConservation ==
+  \A transfer :
+    transfer.v_in1 + transfer.v_in2 =
+      transfer.v_out1 + transfer.v_out2 + transfer.fee
+
+\* INV-F3: Gas price factor stays within bounds
+GasFactorBound ==
+  [](gas_price_factor > 0 /\ gas_price_factor <= MAX_GAS_FACTOR)
+
+\* INV-F4: Fee estimation is a pure function (no state dependency)
+FeeEstimationPurity ==
+  \A s1, s2 :  \* For any two states
+    EstimateEvmFee(s1, amount, gas) = EstimateEvmFee(s2, amount, gas)
+```
+
+---
+
+## 9. Access Control Model
 
 ```tla
 \* Only owner can call admin functions
@@ -231,7 +319,7 @@ MultiSigThreshold ==
 
 ---
 
-## 8. Kakarot Adapter Safety
+## 10. Kakarot Adapter Safety
 
 ```tla
 \* Adapter is a pure proxy — all state changes flow through the underlying pool
@@ -260,7 +348,7 @@ FeeEstimationPure ==
 
 ---
 
-## 9. Verification Approach
+## 11. Verification Approach
 
 ### Tools
 
@@ -272,6 +360,8 @@ FeeEstimationPure ==
 | Bridge Safety       | State machine model     | TLA⁺              | Specified |
 | Access Control      | Permission model        | Manual audit      | Specified |
 | Fee Estimation      | Arithmetic verification | Fuzz tests (done) | Verified  |
+| Liveness            | Temporal logic (WF/SF)  | TLA⁺              | Specified |
+| Fee Model           | Arithmetic + bounds     | TLA⁺              | Specified |
 
 ### Verification Roadmap
 
@@ -299,3 +389,4 @@ FeeEstimationPure ==
 | INV-X2    | ✅        | ✅ (set replay prevention)          | ⬜         |
 | INV-A1–A6 | ✅        | ✅ (caller-check model)             | ⬜         |
 | INV-RE1   | ✅        | ✅ (boolean lock)                   | ⬜         |
+| INV-F1–F4 | ✅        | ✅ (arithmetic bounds)              | ⬜         |

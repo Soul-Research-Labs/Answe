@@ -149,14 +149,92 @@ All remote prover responses are strictly validated: felt252 range checks, proof 
 ### Stealth Addresses
 
 ```typescript
-import { deriveStealthAddress } from "@starkprivacy/sdk";
+import {
+  deriveStealthAddress,
+  encryptNote,
+  tryScanNote,
+} from "@starkprivacy/sdk";
 
-// Sender creates a stealth address for the recipient
-const stealth = deriveStealthAddress(recipientMetaAddress);
+// ─── Sender: create a stealth payment ───────────────
+// Recipient publishes their meta-address (S, V) publicly
+const recipientMeta = { S: spendingPubKey, V: viewingPubKey };
 
-// Recipient scans for incoming payments
-const matches = await indexer.scanStealth(viewingKey, spendingPubKey);
+// Derive a one-time stealth address
+const stealth = deriveStealthAddress(recipientMeta);
+// stealth.stealthOwnerHash → use as `ownerHash` in the deposit commitment
+// stealth.ephemeralPubKey  → publish on StealthRegistry
+// stealth.encryptedPayload → attach to the transaction envelope
+
+// Register the ephemeral key on-chain (via the client)
+await client.publishEphemeralKey(stealth.ephemeralPubKey);
+
+// ─── Recipient: scan for incoming payments ──────────
+const indexer = new EventIndexer(rpcUrl, poolAddress, stealthRegistryAddress);
+const events = await indexer.scanBlocks(0);
+
+// Try to decrypt each ephemeral key with the viewing key
+for (const ephKey of events.ephemeralKeys) {
+  const match = tryScanNote(viewingKey, spendingPubKey, ephKey);
+  if (match) {
+    console.log("Found stealth payment:", match);
+  }
+}
 ```
+
+## Error Handling
+
+The SDK throws typed errors for common failure modes:
+
+```typescript
+import { StarkPrivacyClient } from "@starkprivacy/sdk";
+
+try {
+  await client.withdraw(recipient, 500n, 0n);
+} catch (err) {
+  if (err instanceof Error) {
+    switch (true) {
+      case err.message.includes("Insufficient balance"):
+        console.error("Not enough unspent notes to cover the withdrawal.");
+        break;
+      case err.message.includes("nullifier already used"):
+        console.error("Double-spend detected — note already consumed.");
+        break;
+      case err.message.includes("not a known root"):
+        console.error(
+          "Stale Merkle root. Re-sync notes and retry.",
+        );
+        break;
+      default:
+        console.error("Unexpected error:", err.message);
+    }
+  }
+}
+```
+
+**Common error scenarios:**
+
+| Error                          | Cause                               | Resolution                                 |
+| ------------------------------ | ----------------------------------- | ------------------------------------------ |
+| `Insufficient balance`         | Not enough unspent notes            | Wait for pending deposits to confirm       |
+| `nullifier already used`       | Note already spent                  | Refresh note set with `scanBlocks()`       |
+| `not a known root`             | Root expired from history buffer    | Re-sync and rebuild proof with current root|
+| `Contract is paused`           | Emergency pause active              | Wait for protocol to unpause               |
+| `RelayerClient: all endpoints failed` | Relayer(s) unreachable     | Check relayer status or switch endpoints   |
+
+## Compatibility
+
+| Runtime      | Supported | Notes                                          |
+| ------------ | --------- | ---------------------------------------------- |
+| Node.js ≥ 20 | ✅        | Primary target — full support                  |
+| Bun          | ✅        | Tested with Bun 1.x                            |
+| Deno         | ⚠️        | Untested — should work with `npm:` specifiers  |
+| Browser      | ❌        | Not supported — requires Node.js crypto + fs   |
+
+**Key dependencies:**
+
+- `starknet.js` — Starknet RPC and account management
+- `better-sqlite3` — Relayer job persistence (optional, Node.js only)
+- No native addons — pure TypeScript
 
 ## CLI
 

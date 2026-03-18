@@ -8,6 +8,10 @@ profile/
 sdk/node_modules/
 sdk/dist/
 
+# EVM / Foundry
+contracts/evm/cache/
+contracts/evm/out/
+
 # Scripts
 scripts/.devnet.pid
 scripts/devnet-config.json

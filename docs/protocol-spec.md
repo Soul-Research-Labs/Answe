@@ -1,6 +1,6 @@
 # StarkPrivacy Protocol Specification
 
-> Revision 1.0 — June 2025
+> Revision 1.2 — March 2026
 
 ## 1. Overview
 
@@ -138,6 +138,27 @@ against the oracle before deposits.
 | `RateLimiter`     | Per-address deposit/transfer/withdraw rate limits |
 | `ReentrancyGuard` | Prevents reentrant calls during withdraw          |
 
+### 5.6 Governance Contracts
+
+| Contract            | Purpose                                                                                             |
+| ------------------- | --------------------------------------------------------------------------------------------------- |
+| `MultiSig`          | M-of-N signer approval for governance proposals (`propose`, `approve`, `forward_to_timelock`)       |
+| `Timelock`          | Delayed execution queue — enforces minimum delay between queue and execute (`queue`, `execute`, `cancel`) |
+| `UpgradeableProxy`  | Delegating proxy with governor / emergency-governor roles for contract upgrades                       |
+
+### 5.7 Kakarot Adapter
+
+A pure proxy that routes EVM-originated calls to the underlying `PrivacyPool`.
+
+| Function                             | Description                                           |
+| ------------------------------------ | ----------------------------------------------------- |
+| `evm_deposit(commitment, amount)`    | EVM-compatible deposit route                          |
+| `evm_transfer(proof, root, ...)`     | EVM-compatible transfer route                         |
+| `evm_withdraw(proof, root, ...)`     | EVM-compatible withdraw route                         |
+| `estimate_evm_fee(amount, gas)`      | Stateless fee estimation (view)                       |
+| `pause() / unpause()`               | Emergency pause mechanism (owner-only)                |
+| `set_gas_price_factor(factor)`       | Configurable gas price multiplier (owner-only, capped)|
+
 ---
 
 ## 6. Stealth Addresses
@@ -206,6 +227,64 @@ Cross-chain privacy messaging for Madara L3 appchains:
 | `lock_for_appchain(commitment, target_chain, nullifiers, encrypted)`            | Lock commitment for cross-chain transfer  |
 | `receive_from_appchain(commitment, source_chain, epoch, epoch_root, encrypted)` | Receive from peer after root verification |
 | `sync_epoch_root(peer_chain, epoch, root)`                                      | Sync Merkle root from peer                |
+
+---
+
+## 7a. Operation Sequence Diagrams
+
+### Deposit Flow
+
+```
+User                   SDK                    Relayer              PrivacyPool
+ │                      │                       │                      │
+ │── deposit(amt) ─────>│                       │                      │
+ │                      │── generate commitment │                      │
+ │                      │── build envelope ────>│                      │
+ │                      │                       │── deposit(cm, amt) ─>│
+ │                      │                       │                      │── insert leaf
+ │                      │                       │                      │── update root
+ │                      │                       │<── tx_hash ─────────│
+ │<── tx_hash ─────────│<── confirmation ──────│                      │
+```
+
+### Withdraw Flow
+
+```
+User                   SDK                    Relayer              PrivacyPool
+ │                      │                       │                      │
+ │── withdraw(addr,amt)>│                       │                      │
+ │                      │── select 2 input notes│                      │
+ │                      │── generate ZK proof   │                      │
+ │                      │── pad to 64-felt env  │                      │
+ │                      │── submit envelope ───>│                      │
+ │                      │                       │── withdraw(proof) ──>│
+ │                      │                       │                      │── verify proof
+ │                      │                       │                      │── mark nullifiers
+ │                      │                       │                      │── send exit_value
+ │                      │                       │<── tx_hash ─────────│
+ │<── tx_hash ─────────│<── confirmation ──────│                      │
+```
+
+### Governance Flow (MultiSig → Timelock → Target)
+
+```
+Signer 1               MultiSig               Timelock             Target Contract
+ │                       │                       │                      │
+ │── propose(target,     │                       │                      │
+ │   selector, calldata)>│                       │                      │
+ │                       │── auto-approve ──────>│                      │
+ │                       │                       │                      │
+Signer 2                 │                       │                      │
+ │── approve(prop_id) ──>│ (reaches threshold)   │                      │
+ │                       │                       │                      │
+Signer 1                 │                       │                      │
+ │── forward_to_timelock>│── queue(op) ─────────>│                      │
+ │                       │                       │── wait delay ───────>│
+ │                       │                       │                      │
+ │── execute(op, data) ─>│                       │                      │
+ │                       │               execute>│── call_contract ────>│
+ │                       │                       │                      │── apply change
+```
 
 ---
 
@@ -469,16 +548,20 @@ The application layer does **not** validate FRI parameters directly — it trust
 
 ---
 
-## 10. Gas Costs (Estimated)
+## 10. Gas Costs
 
-| Operation             | L2 Gas   |
-| --------------------- | -------- |
-| Deposit               | ~300 000 |
-| Transfer (2-in-2-out) | ~800 000 |
-| Withdraw              | ~750 000 |
-| Stealth scan tag      | ~25 000  |
-| Epoch advance         | ~150 000 |
-| Cross-chain lock      | ~200 000 |
+Measured values from `snforge test` on Cairo 2.16.0 / snforge 0.57.0.
+See `docs/gas-benchmarks.md` for full breakdown including L1 data gas.
+
+| Operation             | L2 Gas      |
+| --------------------- | ----------- |
+| Deposit               | ~2,755,512  |
+| Transfer (2-in-2-out) | ~6,825,036  |
+| Withdraw              | ~5,837,148  |
+| Stealth register+pub  | ~842,450    |
+| Epoch advance         | ~1,376,924  |
+| Cross-chain lock      | ~459,860    |
+| Full governance flow  | ~3,245,945  |
 
 ---
 
