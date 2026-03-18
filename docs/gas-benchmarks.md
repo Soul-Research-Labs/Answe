@@ -100,19 +100,19 @@ Production costs with `StarkVerifier` may differ.
 The following estimates use representative Starknet gas prices for context.
 Actual costs depend on network conditions.
 
-| Assumption            | Value                                |
-| --------------------- | ------------------------------------ |
-| L2 gas price          | 25 gwei (0.000000025 ETH per unit)   |
-| L1 data gas price     | 50 gwei (0.00000005 ETH per unit)    |
-| ETH price             | $3,000                               |
+| Assumption        | Value                              |
+| ----------------- | ---------------------------------- |
+| L2 gas price      | 25 gwei (0.000000025 ETH per unit) |
+| L1 data gas price | 50 gwei (0.00000005 ETH per unit)  |
+| ETH price         | $3,000                             |
 
-| Operation    | Est. Cost (ETH) | Est. Cost (USD) |
-| ------------ | ---------------:| ---------------:|
-| Deposit      |       ~0.069    |         ~$0.21  |
-| Transfer     |       ~0.171    |         ~$0.51  |
-| Withdraw     |       ~0.146    |         ~$0.44  |
-| Full cycle   |       ~0.224    |         ~$0.67  |
-| Governance   |       ~0.081    |         ~$0.24  |
+| Operation  | Est. Cost (ETH) | Est. Cost (USD) |
+| ---------- | --------------: | --------------: |
+| Deposit    |          ~0.069 |          ~$0.21 |
+| Transfer   |          ~0.171 |          ~$0.51 |
+| Withdraw   |          ~0.146 |          ~$0.44 |
+| Full cycle |          ~0.224 |          ~$0.67 |
+| Governance |          ~0.081 |          ~$0.24 |
 
 > **Disclaimer**: These are rough estimates for planning purposes only.
 > Always check current gas prices on the Starknet block explorer.

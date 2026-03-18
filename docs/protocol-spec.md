@@ -140,24 +140,24 @@ against the oracle before deposits.
 
 ### 5.6 Governance Contracts
 
-| Contract            | Purpose                                                                                             |
-| ------------------- | --------------------------------------------------------------------------------------------------- |
-| `MultiSig`          | M-of-N signer approval for governance proposals (`propose`, `approve`, `forward_to_timelock`)       |
-| `Timelock`          | Delayed execution queue — enforces minimum delay between queue and execute (`queue`, `execute`, `cancel`) |
-| `UpgradeableProxy`  | Delegating proxy with governor / emergency-governor roles for contract upgrades                       |
+| Contract           | Purpose                                                                                                   |
+| ------------------ | --------------------------------------------------------------------------------------------------------- |
+| `MultiSig`         | M-of-N signer approval for governance proposals (`propose`, `approve`, `forward_to_timelock`)             |
+| `Timelock`         | Delayed execution queue — enforces minimum delay between queue and execute (`queue`, `execute`, `cancel`) |
+| `UpgradeableProxy` | Delegating proxy with governor / emergency-governor roles for contract upgrades                           |
 
 ### 5.7 Kakarot Adapter
 
 A pure proxy that routes EVM-originated calls to the underlying `PrivacyPool`.
 
-| Function                             | Description                                           |
-| ------------------------------------ | ----------------------------------------------------- |
-| `evm_deposit(commitment, amount)`    | EVM-compatible deposit route                          |
-| `evm_transfer(proof, root, ...)`     | EVM-compatible transfer route                         |
-| `evm_withdraw(proof, root, ...)`     | EVM-compatible withdraw route                         |
-| `estimate_evm_fee(amount, gas)`      | Stateless fee estimation (view)                       |
-| `pause() / unpause()`               | Emergency pause mechanism (owner-only)                |
-| `set_gas_price_factor(factor)`       | Configurable gas price multiplier (owner-only, capped)|
+| Function                          | Description                                            |
+| --------------------------------- | ------------------------------------------------------ |
+| `evm_deposit(commitment, amount)` | EVM-compatible deposit route                           |
+| `evm_transfer(proof, root, ...)`  | EVM-compatible transfer route                          |
+| `evm_withdraw(proof, root, ...)`  | EVM-compatible withdraw route                          |
+| `estimate_evm_fee(amount, gas)`   | Stateless fee estimation (view)                        |
+| `pause() / unpause()`             | Emergency pause mechanism (owner-only)                 |
+| `set_gas_price_factor(factor)`    | Configurable gas price multiplier (owner-only, capped) |
 
 ---
 
@@ -553,15 +553,15 @@ The application layer does **not** validate FRI parameters directly — it trust
 Measured values from `snforge test` on Cairo 2.16.0 / snforge 0.57.0.
 See `docs/gas-benchmarks.md` for full breakdown including L1 data gas.
 
-| Operation             | L2 Gas      |
-| --------------------- | ----------- |
-| Deposit               | ~2,755,512  |
-| Transfer (2-in-2-out) | ~6,825,036  |
-| Withdraw              | ~5,837,148  |
-| Stealth register+pub  | ~842,450    |
-| Epoch advance         | ~1,376,924  |
-| Cross-chain lock      | ~459,860    |
-| Full governance flow  | ~3,245,945  |
+| Operation             | L2 Gas     |
+| --------------------- | ---------- |
+| Deposit               | ~2,755,512 |
+| Transfer (2-in-2-out) | ~6,825,036 |
+| Withdraw              | ~5,837,148 |
+| Stealth register+pub  | ~842,450   |
+| Epoch advance         | ~1,376,924 |
+| Cross-chain lock      | ~459,860   |
+| Full governance flow  | ~3,245,945 |
 
 ---
 

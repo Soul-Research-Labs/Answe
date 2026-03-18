@@ -200,9 +200,7 @@ try {
         console.error("Double-spend detected — note already consumed.");
         break;
       case err.message.includes("not a known root"):
-        console.error(
-          "Stale Merkle root. Re-sync notes and retry.",
-        );
+        console.error("Stale Merkle root. Re-sync notes and retry.");
         break;
       default:
         console.error("Unexpected error:", err.message);
@@ -213,22 +211,22 @@ try {
 
 **Common error scenarios:**
 
-| Error                          | Cause                               | Resolution                                 |
-| ------------------------------ | ----------------------------------- | ------------------------------------------ |
-| `Insufficient balance`         | Not enough unspent notes            | Wait for pending deposits to confirm       |
-| `nullifier already used`       | Note already spent                  | Refresh note set with `scanBlocks()`       |
-| `not a known root`             | Root expired from history buffer    | Re-sync and rebuild proof with current root|
-| `Contract is paused`           | Emergency pause active              | Wait for protocol to unpause               |
-| `RelayerClient: all endpoints failed` | Relayer(s) unreachable     | Check relayer status or switch endpoints   |
+| Error                                 | Cause                            | Resolution                                  |
+| ------------------------------------- | -------------------------------- | ------------------------------------------- |
+| `Insufficient balance`                | Not enough unspent notes         | Wait for pending deposits to confirm        |
+| `nullifier already used`              | Note already spent               | Refresh note set with `scanBlocks()`        |
+| `not a known root`                    | Root expired from history buffer | Re-sync and rebuild proof with current root |
+| `Contract is paused`                  | Emergency pause active           | Wait for protocol to unpause                |
+| `RelayerClient: all endpoints failed` | Relayer(s) unreachable           | Check relayer status or switch endpoints    |
 
 ## Compatibility
 
-| Runtime      | Supported | Notes                                          |
-| ------------ | --------- | ---------------------------------------------- |
-| Node.js ≥ 20 | ✅        | Primary target — full support                  |
-| Bun          | ✅        | Tested with Bun 1.x                            |
-| Deno         | ⚠️        | Untested — should work with `npm:` specifiers  |
-| Browser      | ❌        | Not supported — requires Node.js crypto + fs   |
+| Runtime      | Supported | Notes                                         |
+| ------------ | --------- | --------------------------------------------- |
+| Node.js ≥ 20 | ✅        | Primary target — full support                 |
+| Bun          | ✅        | Tested with Bun 1.x                           |
+| Deno         | ⚠️        | Untested — should work with `npm:` specifiers |
+| Browser      | ❌        | Not supported — requires Node.js crypto + fs  |
 
 **Key dependencies:**
 

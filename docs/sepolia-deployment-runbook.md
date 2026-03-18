@@ -309,33 +309,33 @@ done
 
 ### `scarb build` Fails
 
-| Error                              | Fix                                                                |
-| ---------------------------------- | ------------------------------------------------------------------ |
-| `unresolved import`                | Run `scarb fetch` to download dependencies                         |
-| Version mismatch                   | Ensure `scarb --version` outputs 2.16.0; use `asdf` or `scarb-install` |
-| `contract_class.json` not found    | Clean and rebuild: `rm -rf target && scarb build`                  |
+| Error                           | Fix                                                                    |
+| ------------------------------- | ---------------------------------------------------------------------- |
+| `unresolved import`             | Run `scarb fetch` to download dependencies                             |
+| Version mismatch                | Ensure `scarb --version` outputs 2.16.0; use `asdf` or `scarb-install` |
+| `contract_class.json` not found | Clean and rebuild: `rm -rf target && scarb build`                      |
 
 ### `sncast deploy` Fails
 
-| Error                              | Fix                                                                |
-| ---------------------------------- | ------------------------------------------------------------------ |
-| `Account not found`                | Run `sncast account create` and `sncast account deploy` first      |
-| `Insufficient funds`               | Fund deployer with ≥0.5 ETH from Sepolia faucet                   |
-| `Class hash already declared`      | Normal if redeploying — deploy the contract, skip declare          |
-| `Transaction reverted`             | Check constructor args match contract expectations                 |
+| Error                         | Fix                                                           |
+| ----------------------------- | ------------------------------------------------------------- |
+| `Account not found`           | Run `sncast account create` and `sncast account deploy` first |
+| `Insufficient funds`          | Fund deployer with ≥0.5 ETH from Sepolia faucet               |
+| `Class hash already declared` | Normal if redeploying — deploy the contract, skip declare     |
+| `Transaction reverted`        | Check constructor args match contract expectations            |
 
 ### Monitor Alerts After Deployment
 
-| Alert                              | Likely Cause                                                       |
-| ---------------------------------- | ------------------------------------------------------------------ |
-| `Epoch DECREASED`                  | Expected on fresh deploy if epoch starts at 0                      |
-| `Merkle root is zero`              | Normal — no deposits yet. Alert resolves after first deposit       |
-| `RPC node unreachable`             | Check `STARKNET_RPC_URL` is correct and network is up              |
+| Alert                  | Likely Cause                                                 |
+| ---------------------- | ------------------------------------------------------------ |
+| `Epoch DECREASED`      | Expected on fresh deploy if epoch starts at 0                |
+| `Merkle root is zero`  | Normal — no deposits yet. Alert resolves after first deposit |
+| `RPC node unreachable` | Check `STARKNET_RPC_URL` is correct and network is up        |
 
 ### SDK Errors
 
-| Error                              | Fix                                                                |
-| ---------------------------------- | ------------------------------------------------------------------ |
-| `Cannot find module`               | Run `npm ci && npm run build` in `sdk/`                            |
-| `RPC timeout`                      | Check RPC URL; Sepolia public endpoints may rate-limit             |
-| `Not a known root`                 | Deposit to populate the root history, then retry                   |
+| Error                | Fix                                                    |
+| -------------------- | ------------------------------------------------------ |
+| `Cannot find module` | Run `npm ci && npm run build` in `sdk/`                |
+| `RPC timeout`        | Check RPC URL; Sepolia public endpoints may rate-limit |
+| `Not a known root`   | Deposit to populate the root history, then retry       |

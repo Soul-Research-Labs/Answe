@@ -244,16 +244,17 @@ describe("Relayer retry behaviour", () => {
     });
     const jobId = await relayer.submit(validProof());
 
-    // Wait for the async processing queue to settle
-    // (retries with backoff: 1s, but network fails immediately → ~1s total)
-    await new Promise((r) => setTimeout(r, 3000));
+    // Wait for the async processing queue to settle.
+    // With jitter (up to 2s per attempt) + 1s backoff for maxRetries=1,
+    // the total worst-case is ~5s; use 7s to avoid flakiness.
+    await new Promise((r) => setTimeout(r, 7000));
 
     const job = await storage.load(jobId);
     expect(job).toBeDefined();
     expect(job!.status).toBe("failed");
     expect(job!.error).toBeDefined();
     expect(job!.retries).toBeGreaterThan(0);
-  });
+  }, 10_000);
 
   it("job moves from pending → submitted → failed lifecycle", async () => {
     const storage = new InMemoryJobStorage();

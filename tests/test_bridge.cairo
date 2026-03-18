@@ -6,6 +6,18 @@ use starkprivacy_bridge::epoch_manager::IEpochManagerDispatcherTrait;
 use starkprivacy_bridge::router::IBridgeRouterDispatcher;
 use starkprivacy_bridge::router::IBridgeRouterDispatcherTrait;
 
+fn deploy_pool() -> ContractAddress {
+    let contract = declare("PrivacyPool").unwrap().contract_class();
+    let native_token: ContractAddress = 0.try_into().unwrap();
+    let compliance: ContractAddress = 0.try_into().unwrap();
+    let owner: ContractAddress = starknet::get_contract_address();
+    let calldata: Array<felt252> = array![
+        native_token.into(), compliance.into(), 'SN_SEPOLIA', 'STARKPRIVACY', owner.into(),
+    ];
+    let (address, _) = contract.deploy(@calldata).unwrap();
+    address
+}
+
 fn deploy_epoch_manager() -> ContractAddress {
     let contract = declare("EpochManager").unwrap().contract_class();
     let owner: ContractAddress = starknet::get_contract_address();
@@ -131,7 +143,7 @@ fn test_epoch_nullifier_not_in_wrong_epoch() {
 
 #[test]
 fn test_bridge_initial_state() {
-    let pool: ContractAddress = 0x999.try_into().unwrap();
+    let pool = deploy_pool();
     let address = deploy_bridge_router(pool);
     let bridge = IBridgeRouterDispatcher { contract_address: address };
 
@@ -141,7 +153,7 @@ fn test_bridge_initial_state() {
 
 #[test]
 fn test_bridge_publish_epoch_root() {
-    let pool: ContractAddress = 0x999.try_into().unwrap();
+    let pool = deploy_pool();
     let address = deploy_bridge_router(pool);
     let bridge = IBridgeRouterDispatcher { contract_address: address };
 
@@ -154,33 +166,37 @@ fn test_bridge_publish_epoch_root() {
 
 #[test]
 fn test_bridge_lock_for_bridge() {
-    let pool: ContractAddress = 0x999.try_into().unwrap();
+    let pool = deploy_pool();
     let address = deploy_bridge_router(pool);
     let bridge = IBridgeRouterDispatcher { contract_address: address };
 
     let commitment: felt252 = 0xC0AA11;
     let dest_chain: felt252 = 'ETHEREUM';
+    let amount: u256 = 1000;
+    let asset_id: felt252 = 0;
     let proof: Array<felt252> = array![1];
     let nullifiers = (0xAF01, 0xAF02);
 
-    bridge.lock_for_bridge(commitment, dest_chain, proof.span(), nullifiers);
+    bridge.lock_for_bridge(commitment, dest_chain, amount, asset_id, proof.span(), nullifiers);
     assert!(bridge.get_lock_count() == 1, "lock count should be 1");
+    assert!(bridge.get_lock_amount(commitment) == 1000, "lock amount should be 1000");
+    assert!(bridge.get_lock_asset_id(commitment) == 0, "lock asset_id should be 0");
 }
 
 #[test]
 #[should_panic(expected: "commitment already locked")]
 fn test_bridge_duplicate_lock_rejected() {
-    let pool: ContractAddress = 0x999.try_into().unwrap();
+    let pool = deploy_pool();
     let address = deploy_bridge_router(pool);
     let bridge = IBridgeRouterDispatcher { contract_address: address };
 
-    bridge.lock_for_bridge(0xC0AA11, 'ETHEREUM', array![1].span(), (0xAF01, 0xAF02));
-    bridge.lock_for_bridge(0xC0AA11, 'ETHEREUM', array![1].span(), (0xAF03, 0xAF04));
+    bridge.lock_for_bridge(0xC0AA11, 'ETHEREUM', 500, 0, array![1].span(), (0xAF01, 0xAF02));
+    bridge.lock_for_bridge(0xC0AA11, 'ETHEREUM', 500, 0, array![1].span(), (0xAF03, 0xAF04));
 }
 
 #[test]
 fn test_bridge_authorize_and_revoke_relayer() {
-    let pool: ContractAddress = 0x999.try_into().unwrap();
+    let pool = deploy_pool();
     let address = deploy_bridge_router(pool);
     let bridge = IBridgeRouterDispatcher { contract_address: address };
 
@@ -197,7 +213,7 @@ fn test_bridge_authorize_and_revoke_relayer() {
 
 #[test]
 fn test_bridge_multiple_epoch_roots() {
-    let pool: ContractAddress = 0x999.try_into().unwrap();
+    let pool = deploy_pool();
     let address = deploy_bridge_router(pool);
     let bridge = IBridgeRouterDispatcher { contract_address: address };
 

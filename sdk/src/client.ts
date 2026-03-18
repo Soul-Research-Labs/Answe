@@ -44,7 +44,7 @@ import {
   generateTransferProofAsync,
   generateWithdrawProofAsync,
 } from "./prover.js";
-import { padEnvelope } from "./metadata.js";
+import { padEnvelope, relayJitter } from "./metadata.js";
 
 export interface StarkPrivacyConfig {
   /** Starknet RPC endpoint URL. */
@@ -139,6 +139,14 @@ export class StarkPrivacyClient {
 
     // Create a new note
     const note = this.notes.createNote(this.keys.ownerHash, amount, assetId);
+
+    // Pad deposit arguments into a fixed-size envelope for metadata resistance.
+    // This makes deposit calldata indistinguishable in size from transfer/withdraw.
+    const depositData: Felt252[] = [note.commitment, amount, assetId];
+    const paddedDeposit = padEnvelope(depositData);
+
+    // Apply timing jitter to decorrelate deposit from user activity
+    await relayJitter();
 
     // Submit deposit to the contract
     const tx = await this.poolContract!.invoke("deposit", [

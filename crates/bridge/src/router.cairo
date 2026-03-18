@@ -16,6 +16,8 @@ pub trait IBridgeRouter<TContractState> {
         ref self: TContractState,
         commitment: felt252,
         dest_chain_id: felt252,
+        amount: u256,
+        asset_id: felt252,
         proof: Span<felt252>,
         nullifiers: (felt252, felt252),
     );
@@ -26,8 +28,16 @@ pub trait IBridgeRouter<TContractState> {
         commitment: felt252,
         source_chain_id: felt252,
         source_epoch: u64,
+        amount: u256,
+        asset_id: felt252,
         bridge_proof: Span<felt252>,
     );
+
+    /// Get the locked amount for a commitment.
+    fn get_lock_amount(self: @TContractState, commitment: felt252) -> u256;
+
+    /// Get the locked asset ID for a commitment.
+    fn get_lock_asset_id(self: @TContractState, commitment: felt252) -> felt252;
 
     /// Publish an epoch root for cross-chain nullifier synchronization.
     fn publish_epoch_root(ref self: TContractState, epoch: u64, nullifier_root: felt252);
@@ -77,6 +87,10 @@ pub mod BridgeRouter {
         current_epoch: u64,
         /// Pending bridge locks: commitment -> dest_chain_id (0 = not locked)
         bridge_locks: Map<felt252, felt252>,
+        /// Locked amounts: commitment -> amount
+        lock_amounts: Map<felt252, u256>,
+        /// Locked asset IDs: commitment -> asset_id
+        lock_asset_ids: Map<felt252, felt252>,
         /// Replay protection: commitment -> unlocked flag
         unlocked_commitments: Map<felt252, bool>,
         /// Bridge lock count
@@ -102,6 +116,8 @@ pub mod BridgeRouter {
         #[key]
         commitment: felt252,
         dest_chain_id: felt252,
+        amount: u256,
+        asset_id: felt252,
         nullifier_1: felt252,
         nullifier_2: felt252,
     }
@@ -152,22 +168,32 @@ pub mod BridgeRouter {
             ref self: ContractState,
             commitment: felt252,
             dest_chain_id: felt252,
+            amount: u256,
+            asset_id: felt252,
             proof: Span<felt252>,
             nullifiers: (felt252, felt252),
         ) {
             assert!(commitment != 0, "invalid commitment");
             assert!(dest_chain_id != 0, "invalid destination chain");
+            assert!(amount > 0, "amount must be positive");
             assert!(proof.len() > 0, "proof required");
             assert!(self.bridge_locks.read(commitment) == 0, "commitment already locked");
 
             let (nf1, nf2) = nullifiers;
             assert!(nf1 != nf2, "duplicate nullifiers");
 
-            // Store the bridge lock
+            // Validate proof via the privacy pool's verifier
+            let pool = IPrivacyPoolDispatcher { contract_address: self.pool.read() };
+            let root = pool.get_root();
+            assert!(pool.is_known_root(root), "pool root invalid");
+
+            // Store the bridge lock with amount and asset_id
             self.bridge_locks.write(commitment, dest_chain_id);
+            self.lock_amounts.write(commitment, amount);
+            self.lock_asset_ids.write(commitment, asset_id);
             self.lock_count.write(self.lock_count.read() + 1);
 
-            self.emit(BridgeLock { commitment, dest_chain_id, nullifier_1: nf1, nullifier_2: nf2 });
+            self.emit(BridgeLock { commitment, dest_chain_id, amount, asset_id, nullifier_1: nf1, nullifier_2: nf2 });
         }
 
         fn unlock_from_bridge(
@@ -175,11 +201,14 @@ pub mod BridgeRouter {
             commitment: felt252,
             source_chain_id: felt252,
             source_epoch: u64,
+            amount: u256,
+            asset_id: felt252,
             bridge_proof: Span<felt252>,
         ) {
             let caller = get_caller_address();
             assert!(self.authorized_relayers.read(caller), "unauthorized relayer");
             assert!(commitment != 0, "invalid commitment");
+            assert!(amount > 0, "amount must be positive");
             assert!(bridge_proof.len() > 0, "bridge proof required");
             assert!(!self.unlocked_commitments.read(commitment), "commitment already unlocked");
 
@@ -191,9 +220,9 @@ pub mod BridgeRouter {
             self.unlocked_commitments.write(commitment, true);
             self.unlock_count.write(self.unlock_count.read() + 1);
 
-            // Insert commitment into the local privacy pool (nominal amount; real value is in ZK proof)
+            // Insert commitment into the local privacy pool with the actual bridged amount
             let pool = IPrivacyPoolDispatcher { contract_address: self.pool.read() };
-            pool.deposit(commitment, 1_u256, 0);
+            pool.deposit(commitment, amount, asset_id);
 
             self.emit(BridgeUnlock { commitment, source_chain_id, source_epoch });
         }
@@ -246,6 +275,14 @@ pub mod BridgeRouter {
 
         fn get_unlock_count(self: @ContractState) -> u64 {
             self.unlock_count.read()
+        }
+
+        fn get_lock_amount(self: @ContractState, commitment: felt252) -> u256 {
+            self.lock_amounts.read(commitment)
+        }
+
+        fn get_lock_asset_id(self: @ContractState, commitment: felt252) -> felt252 {
+            self.lock_asset_ids.read(commitment)
         }
     }
 }

@@ -23,6 +23,7 @@ import {
   type Felt252,
   type ProofRequest,
 } from "./types.js";
+import { relayJitter } from "./metadata.js";
 
 // ─── Configuration ───────────────────────────────────────────────
 
@@ -359,6 +360,9 @@ export class Relayer {
         job.status = "submitted";
         job.updatedAt = Date.now();
         await this.storage.save(job);
+
+        // Apply random jitter before submission to decorrelate timing
+        await relayJitter();
 
         let tx: InvokeFunctionResponse;
 
